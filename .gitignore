@@ -7,3 +7,4 @@ package-lock.json
 .idea/
 vite.config.*s.*
 backend/venv/
+backend/.env
