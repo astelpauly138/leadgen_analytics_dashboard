@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Icon from '../AppIcon';
+import analyticaLogo from '../../styles/images/Analytica-text.png';
 
 const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
   const location = useLocation();
@@ -64,11 +65,8 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
           isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
-        <div className="sidebar-header">
-          <div className="sidebar-logo">
-            <Icon name="TrendingUp" size={24} color="var(--color-primary)" />
-          </div>
-          <span className="sidebar-brand-text">ANALYTICA</span>
+        <div className="sidebar-header" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <img src={analyticaLogo} alt="Analytica" className="sidebar-brand-img" style={{ height: '22px', objectFit: 'contain' }} />
         </div>
 
         <nav className="sidebar-nav" aria-label="Main navigation">

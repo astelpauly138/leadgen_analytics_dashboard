@@ -1,6 +1,6 @@
 import Icon from '../../../components/AppIcon';
 
-const KPICard = ({ title, value, change, changeType, icon, iconColor, benchmark }) => {
+const KPICard = ({ title, value, change, changeType, icon, iconColor }) => {
   const isPositive = changeType === 'positive';
   const isNeutral = changeType === 'neutral';
 
@@ -10,12 +10,6 @@ const KPICard = ({ title, value, change, changeType, icon, iconColor, benchmark 
         <div className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-lg" style={{ backgroundColor: `${iconColor}20` }}>
           <Icon name={icon} size={20} color={iconColor} />
         </div>
-        {benchmark && (
-          <div className="text-right">
-            <p className="caption text-muted-foreground text-xs">Benchmark</p>
-            <p className="text-sm font-medium text-foreground">{benchmark}</p>
-          </div>
-        )}
       </div>
 
       <div className="space-y-2">

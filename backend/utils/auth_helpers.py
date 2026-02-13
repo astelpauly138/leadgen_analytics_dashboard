@@ -29,6 +29,30 @@ def get_current_user(authorization: str = Header(...)):
         if not user:
             raise HTTPException(status_code=401, detail="Invalid token")
 
+        # Check if user is approved
+        try:
+            profile_response = supabase.table("profiles")\
+                .select("is_approved")\
+                .eq("id", user.id)\
+                .single()\
+                .execute()
+
+            profile = profile_response.data
+
+            if not profile or not profile.get("is_approved", False):
+                raise HTTPException(
+                    status_code=403,
+                    detail="Account not approved. Please contact the administrator."
+                )
+        except HTTPException:
+            raise
+        except Exception as e:
+            # If profile check fails, deny access for security
+            raise HTTPException(
+                status_code=403,
+                detail=f"Unable to verify account approval status: {str(e)}"
+            )
+
         return user
     except HTTPException:
         raise

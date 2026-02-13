@@ -2,15 +2,15 @@ import Icon from '../../../components/AppIcon';
 
 const LeadTableHeader = ({ sortConfig, onSort, onSelectAll, selectedCount, totalCount }) => {
   const columns = [
-    { key: 'name', label: 'Contact Name', sortable: true, width: 'w-48' },
-    { key: 'company', label: 'Company', sortable: true, width: 'w-44' },
-    { key: 'email', label: 'Email', sortable: true, width: 'w-56' },
-    { key: 'phone', label: 'Phone', sortable: false, width: 'w-36' },
-    { key: 'status', label: 'Status', sortable: true, width: 'w-32' },
-    { key: 'quality', label: 'Quality Score', sortable: true, width: 'w-32' },
-    { key: 'source', label: 'Source', sortable: true, width: 'w-32' },
-    { key: 'lastContact', label: 'Last Contact', sortable: true, width: 'w-36' },
-    { key: 'actions', label: 'Actions', sortable: false, width: 'w-24' }
+    { key: 'name', label: 'Contact Name', sortable: true, width: 'min-w-[140px]' },
+    { key: 'company', label: 'Company', sortable: true, width: 'min-w-[120px]' },
+    { key: 'email', label: 'Email', sortable: true, width: 'min-w-[160px]' },
+    { key: 'phone', label: 'Phone', sortable: false, width: 'min-w-[120px]' },
+    { key: 'status', label: 'Status', sortable: true, width: 'min-w-[100px]' },
+    { key: 'quality', label: 'Quality Score', sortable: true, width: 'min-w-[120px]' },
+    { key: 'source', label: 'Source', sortable: true, width: 'min-w-[90px]' },
+    { key: 'lastContact', label: 'Last Contact', sortable: true, width: 'min-w-[110px]' },
+    { key: 'actions', label: 'Actions', sortable: false, width: 'min-w-[80px]' }
   ];
 
   const handleSort = (key) => {

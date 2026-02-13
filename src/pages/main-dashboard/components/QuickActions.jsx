@@ -8,7 +8,7 @@ const QuickActions = ({ onActionClick }) => {
       label: 'Export Report',
       icon: 'Download',
       variant: 'outline',
-      description: 'Download performance data'
+      description: 'Download Approved Leads data'
     },
     {
       id: 'refresh',

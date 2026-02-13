@@ -4,6 +4,7 @@ import { Helmet } from 'react-helmet';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Icon from '../../components/AppIcon';
+import appLogo from '../../styles/images/logo.png';
 import { useAuth } from '../../context/AuthContext';
 
 const API_URL = "http://127.0.0.1:8000";
@@ -163,8 +164,8 @@ const AuthenticationSignup = () => {
         <div className="w-full max-w-md">
           {/* Logo/Brand Section */}
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-primary/20 rounded-2xl mb-4">
-              <Icon name="BarChart3" size={32} color="var(--color-primary)" />
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4">
+              <img src={appLogo} alt="Logo" style={{ width: '80px', height: '80px', objectFit: 'contain' }} />
             </div>
             <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-2">Create Account</h1>
             <p className="text-sm text-muted-foreground">Start your analytics journey today</p>

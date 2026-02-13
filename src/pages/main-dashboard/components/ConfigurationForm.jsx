@@ -241,10 +241,42 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
   };
 
   return (
-    <div className="bg-card border border-border rounded-xl p-4 md:p-6 shadow-sm h-full flex flex-col relative">
-      {/* Toggle Buttons - ALWAYS visible at top right, fixed position */}
-      <div className="absolute top-4 right-4 z-10">
-        <div className="flex items-center gap-2 bg-muted/50 p-1 rounded-lg shadow-md">
+    <div className="bg-card border border-border rounded-xl p-4 md:p-6 shadow-sm h-full flex flex-col">
+      {/* Header row: state-dependent title + toggle buttons */}
+      <div className="flex items-start justify-between mb-6">
+        {/* Left: dynamic header based on state */}
+        {showForm && !isSubmitting && (
+          <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center w-10 h-10 bg-primary/20 rounded-lg">
+              <Icon name="Settings" size={20} color="var(--color-primary)" />
+            </div>
+            <div className="ml-3">
+              <h2 className="text-lg md:text-xl font-semibold text-foreground">Lead Scraping Configuration</h2>
+              <p className="caption text-muted-foreground text-xs md:text-sm">Configure your lead generation parameters</p>
+            </div>
+          </div>
+        )}
+        {scrapingResults && showList && !isSubmitting && (
+          <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center w-10 h-10 bg-success/20 rounded-lg">
+              <Icon name="CheckCircle2" size={20} color="var(--color-success)" />
+            </div>
+            <div>
+              <h2 className="text-lg md:text-xl font-semibold text-foreground">
+                {activeView === 'pending' ? 'Email Pending for Approval' : 'Emails Sent'}
+              </h2>
+              <p className="caption text-muted-foreground text-xs md:text-sm">
+                {activeView === 'pending'
+                  ? 'Select leads to approve for email sending'
+                  : 'View all emails that have been sent'}
+              </p>
+            </div>
+          </div>
+        )}
+        {isSubmitting && <div />}
+
+        {/* Right: Toggle Buttons - always visible */}
+        <div className="flex items-center gap-2 bg-muted/50 p-1 rounded-lg shrink-0">
           <button
             onClick={() => handleToggleClick('pending')}
             disabled={!scrapingResults}
@@ -270,9 +302,6 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
         </div>
       </div>
 
-      {/* Main Content Area - with padding for fixed toggle buttons */}
-      <div className="pt-12">
-
       {/* Processing State */}
       {isSubmitting && (
         <div className="flex flex-col items-center justify-center py-12 flex-1">
@@ -294,23 +323,6 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
       {/* Results State - Only show when list is requested */}
       {scrapingResults && showList && !isSubmitting && (
         <div className="space-y-4 flex-1 flex flex-col overflow-hidden">
-          {/* Header */}
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-10 h-10 bg-success/20 rounded-lg">
-              <Icon name="CheckCircle2" size={20} color="var(--color-success)" />
-            </div>
-            <div>
-              <h2 className="text-lg md:text-xl font-semibold text-foreground">
-                {activeView === 'pending' ? 'Email Pending for Approval' : 'Emails Sent'}
-              </h2>
-              <p className="caption text-muted-foreground text-xs md:text-sm">
-                {activeView === 'pending'
-                  ? 'Select leads to approve for email sending'
-                  : 'View all emails that have been sent'}
-              </p>
-            </div>
-          </div>
-
           {/* Total Scraped Summary */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-shrink-0">
             <div className="col-span-1 bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 rounded-lg p-4">
@@ -462,15 +474,6 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
       {/* Form State - Show when showForm is true and not submitting */}
       {showForm && !isSubmitting && (
         <>
-          <div className="flex items-center gap-3 mb-6">
-            <div className="flex items-center justify-center w-10 h-10 bg-primary/20 rounded-lg">
-              <Icon name="Settings" size={20} color="var(--color-primary)" />
-            </div>
-            <div className="ml-3">
-              <h2 className="text-lg md:text-xl font-semibold text-foreground">Lead Scraping Configuration</h2>
-              <p className="caption text-muted-foreground text-xs md:text-sm">Configure your lead generation parameters</p>
-            </div>
-          </div>
           <form onSubmit={handleSubmit} className="space-y-4">
             <Select
               label="Target Industry"
@@ -502,7 +505,7 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
             />
 
             <Select
-              label="Geographic Location"
+              label="Country"
               options={locationOptions}
               value={formData?.location}
               onChange={(value) => handleInputChange('location', value)}
@@ -581,7 +584,6 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
         </div>
         </>
       )}
-      </div>
     </div>
   );
 };

@@ -330,8 +330,8 @@ const LeadAnalyticsSheet = () => {
               
             </div>
 
-            <div className="flex gap-6">
-              <div className="hidden lg:block w-80 flex-shrink-0">
+            <div className="flex gap-6 lg:grid lg:grid-cols-[20rem_1fr]">
+              <div className="hidden lg:block">
                 <div className="sticky top-24">
                   <FilterSidebar
                     filters={filters}
@@ -353,7 +353,7 @@ const LeadAnalyticsSheet = () => {
                 
               </div>
 
-              <div className="flex-1 min-w-0">
+              <div className="flex-1 min-w-0 overflow-hidden">
                 <div className="bg-card border border-border rounded-xl overflow-hidden">
                   {!isMobile ?
                   <div className="overflow-x-auto">

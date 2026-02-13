@@ -86,7 +86,7 @@ const SystemLogViewer = ({ logs }) => {
           onChange={setFilterSeverity}
         />
       </div>
-      <div className="space-y-2 max-h-96 overflow-y-auto">
+      <div className="space-y-2">
         {filteredLogs?.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <Icon name="Inbox" size={48} className="mx-auto mb-3 opacity-50" />

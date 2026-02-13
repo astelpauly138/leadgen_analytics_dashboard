@@ -2,8 +2,8 @@ import Icon from '../../../components/AppIcon';
 
 const CampaignLeaderboard = ({ campaigns }) => {
   return (
-    <div className="bg-card border border-border rounded-xl p-4 md:p-6">
-      <div className="flex items-center justify-between mb-6">
+    <div className="bg-card border border-border rounded-xl p-4 md:p-6 h-full flex flex-col">
+      <div className="flex items-center justify-between mb-6 shrink-0">
         <div>
           <h2 className="text-lg md:text-xl font-semibold text-foreground mb-1">Top Campaigns</h2>
           <p className="caption text-muted-foreground text-sm">Best performing sequences</p>
@@ -12,7 +12,7 @@ const CampaignLeaderboard = ({ campaigns }) => {
           <Icon name="Trophy" size={20} color="var(--color-success)" />
         </div>
       </div>
-      <div className="space-y-4">
+      <div className="space-y-4 overflow-y-auto min-h-0 max-h-[22rem]">
         {campaigns?.map((campaign, index) => (
           <div 
             key={campaign?.id}
@@ -68,7 +68,7 @@ const CampaignLeaderboard = ({ campaigns }) => {
           </div>
         ))}
       </div>
-      <button className="w-full mt-4 px-4 py-2.5 bg-muted hover:bg-muted/80 text-foreground rounded-lg text-sm font-medium transition-all duration-250 touch-target flex items-center justify-center gap-2">
+      <button className="w-full mt-4 px-4 py-2.5 bg-muted hover:bg-muted/80 text-foreground rounded-lg text-sm font-medium transition-all duration-250 touch-target flex items-center justify-center gap-2 shrink-0">
         <span>View All Campaigns</span>
         <Icon name="ArrowRight" size={16} />
       </button>

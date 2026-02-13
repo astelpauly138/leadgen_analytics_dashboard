@@ -29,8 +29,7 @@ const CampaignPerformance = () => {
       change: "+12.5%",
       changeType: "positive",
       icon: "Mail",
-      iconColor: "var(--color-primary)",
-      benchmark: "Industry: 42"
+      iconColor: "var(--color-primary)"
     },
     {
       title: "Average Open Rate",
@@ -38,8 +37,7 @@ const CampaignPerformance = () => {
       change: "+5.2%",
       changeType: "positive",
       icon: "Eye",
-      iconColor: "var(--color-success)",
-      benchmark: "Industry: 28%"
+      iconColor: "var(--color-success)"
     },
     {
       title: "Click-Through Rate",
@@ -47,8 +45,7 @@ const CampaignPerformance = () => {
       change: "+2.1%",
       changeType: "positive",
       icon: "MousePointer",
-      iconColor: "var(--color-warning)",
-      benchmark: "Industry: 9%"
+      iconColor: "var(--color-warning)"
     },
     {
       title: "Conversion Rate",
@@ -56,8 +53,7 @@ const CampaignPerformance = () => {
       change: "+1.8%",
       changeType: "positive",
       icon: "Target",
-      iconColor: "var(--color-accent)",
-      benchmark: "Industry: 6%"
+      iconColor: "var(--color-accent)"
     }
   ];
 
