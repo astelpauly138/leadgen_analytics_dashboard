@@ -69,7 +69,7 @@ const PerformanceMetrics = ({ metrics, chartData }) => {
                   dataKey="n8n_webhook" 
                   stroke="var(--color-secondary)" 
                   strokeWidth={2}
-                  name="n8n Webhook"
+                  name="Webhook"
                   dot={false}
                 />
                 <Line 

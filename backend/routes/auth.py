@@ -28,7 +28,7 @@ def signup(data: SignupRequest):
     if data.password != data.confirm_password:
         raise HTTPException(status_code=400, detail="Passwords do not match")
 
-    # 1️⃣ Create user in Supabase Auth
+    # Create user in Supabase Auth
     try:
         auth_response = supabase.auth.sign_up({
             "email": data.email,

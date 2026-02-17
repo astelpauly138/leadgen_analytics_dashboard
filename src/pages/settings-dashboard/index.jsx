@@ -20,7 +20,7 @@ const SettingsDashboard = () => {
       details: "All read/write operations functioning normally with 99.8% uptime"
     },
     {
-      title: "n8n Webhook",
+      title: "Webhook",
       status: "operational",
       lastCheck: "1 minute ago",
       icon: "Webhook",
@@ -74,7 +74,7 @@ const SettingsDashboard = () => {
       type: "webhook",
       severity: "info",
       timestamp: "02/09/2026 06:23:45",
-      message: "n8n Webhook: Received scraping completion notification for Technology sector"
+      message: "Webhook: Received scraping completion notification for Technology sector"
     },
     {
       id: 3,
@@ -102,7 +102,7 @@ const SettingsDashboard = () => {
       type: "webhook",
       severity: "info",
       timestamp: "02/09/2026 06:15:27",
-      message: "n8n Webhook: Campaign trigger executed successfully for Healthcare vertical"
+      message: "Webhook: Campaign trigger executed successfully for Healthcare vertical"
     },
     {
       id: 7,
@@ -209,7 +209,7 @@ const SettingsDashboard = () => {
 
   const tabs = [
     { id: 'google_sheets', label: 'Google Sheets', icon: 'FileSpreadsheet' },
-    { id: 'n8n_webhook', label: 'n8n Webhook', icon: 'Webhook' },
+    { id: 'n8n_webhook', label: 'Webhook', icon: 'Webhook' },
     { id: 'email_service', label: 'Email Service', icon: 'Mail' }
   ];
 
