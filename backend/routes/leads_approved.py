@@ -1,0 +1,90 @@
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+from typing import List, Optional
+from supabase_client import supabase
+from routes.activity_log import insert_activity_log
+from services.sent_email import send_email
+from datetime import datetime
+import uuid
+
+router = APIRouter()
+
+
+# Request model for each lead approval
+class LeadApproval(BaseModel):
+    lead_id: str
+    approved: bool
+    email: str
+
+
+# Request body model
+class LeadsApprovalRequest(BaseModel):
+    user_id: str
+    campaign_id: str
+    type: str  # email event type (dynamic)
+    leads: List[LeadApproval]
+
+
+@router.post("/leads-approved")
+def approve_leads(payload: LeadsApprovalRequest):
+    try:
+        updated_leads = []
+
+        # 1️⃣ Update leads table
+        for lead in payload.leads:
+            if lead.approved:
+                supabase.table("leads") \
+                    .update({"status": "approved"}) \
+                    .eq("id", lead.lead_id) \
+                    .eq("user_id", payload.user_id) \
+                    .eq("campaign_id", payload.campaign_id) \
+                    .execute()
+
+                updated_leads.append({
+                    "lead_id": lead.lead_id,
+                    "email": lead.email,
+                    "status": "approved"
+                })
+
+        # 2️⃣ Insert email events and send emails
+        for lead in payload.leads:
+            if lead.approved:
+                email_event = {
+                    "id": str(uuid.uuid4()),
+                    "user_id": payload.user_id,
+                    "campaign_id": payload.campaign_id,
+                    "lead_id": lead.lead_id,
+                    "event_type": payload.type,
+                    "created_at": datetime.utcnow().isoformat()
+                }
+                supabase.table("email_events").insert(email_event).execute()
+
+                # Send actual email with dynamic tracking URL
+                send_email(
+                    lead_id=lead.lead_id,
+                    user_id=payload.user_id,
+                    campaign_id=payload.campaign_id,
+                    receiver_email=lead.email
+                )
+
+        # 3️⃣ Insert activity log
+        activity_log = insert_activity_log(
+            user_id=payload.user_id,
+            campaign_id=payload.campaign_id,
+            action="Leads approved",
+            metadata={"leads": [lead.dict() for lead in payload.leads]}
+        )
+
+        # 4️⃣ Return response
+        return {
+            "updated_leads": updated_leads,
+            "activity_log": {
+                "user_id": activity_log["user_id"],
+                "campaign_id": activity_log["campaign_id"],
+                "action": activity_log["action"],
+                "created_at": activity_log["created_at"]
+            }
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

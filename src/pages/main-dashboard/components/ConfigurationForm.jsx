@@ -1,12 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
 import Select from '../../../components/ui/Select';
-import { apiGet, apiPost } from '../../../utils/api';
+import { apiPost } from '../../../utils/api';
+import { useAuth } from '../../../context/AuthContext';
 
 const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
+    name: '',
+    campaignType: '',
     industry: '',
     area: '',
     city: '',
@@ -17,21 +21,14 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
 
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [scrapingResults, setScrapingResults] = useState(null);
+  const [pendingLeads, setPendingLeads] = useState([]);
+  const [sentLeads, setSentLeads] = useState([]);
   const [selectedEmployees, setSelectedEmployees] = useState([]);
   const [isApprovingSubmission, setIsApprovingSubmission] = useState(false);
-  const [activeView, setActiveView] = useState('pending'); // 'pending' or 'sent'
-  const [previousPendingCount, setPreviousPendingCount] = useState(0);
-  const [showForm, setShowForm] = useState(true); // Always show form on refresh
-  const [showList, setShowList] = useState(false); // Track if user wants to see the list
-
-  // Load existing dashboard data on mount to enable toggle buttons
-  useEffect(() => {
-    if (dashboardData && dashboardData.total_leads_scraped > 0) {
-      setScrapingResults(dashboardData);
-      // Keep form visible, just load the data for toggle functionality
-    }
-  }, [dashboardData]);
+  const [activeView, setActiveView] = useState('pending');
+  const [currentCampaignId, setCurrentCampaignId] = useState(null);
+  const [showForm, setShowForm] = useState(true);
+  const [showList, setShowList] = useState(false);
 
   const industryOptions = [
     { value: 'technology', label: 'Technology & Software' },
@@ -59,6 +56,14 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
 
   const validateForm = () => {
     const newErrors = {};
+
+    if (!formData?.name?.trim()) {
+      newErrors.name = 'Please enter a campaign name';
+    }
+
+    if (!formData?.campaignType?.trim()) {
+      newErrors.campaignType = 'Please enter a campaign type';
+    }
 
     if (!formData?.industry) {
       newErrors.industry = 'Please select an industry';
@@ -89,20 +94,50 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
     }
 
     setIsSubmitting(true);
-    setShowForm(false); // Hide form during submission
-
-    // Call onSubmit immediately to log scraping start
-    if (typeof onSubmit === 'function') {
-      onSubmit(formData, null);
-    }
+    setShowForm(false);
 
     try {
+      // 1. Resolve labels for the backend
+      const industryLabel = industryOptions.find(o => o.value === formData.industry)?.label || formData.industry;
+      const countryLabel = locationOptions.find(o => o.value === formData.location)?.label || formData.location;
+      const jobTitlesArray = formData.jobTitles.split(',').map(t => t.trim()).filter(Boolean);
+
+      // 2. Create campaign in database
+      const campaignPayload = {
+        name: formData.name,
+        campaign_type: formData.campaignType,
+        industry: industryLabel,
+        area: formData.area || '',
+        city: formData.city || '',
+        state: '',
+        country: countryLabel,
+        job_titles: jobTitlesArray,
+        requested_leads: parseInt(formData.no_of_targets) || 100,
+        status: 'pending'
+      };
+
+      const campaignResult = await apiPost(`/campaigns/${user.user_id}`, campaignPayload);
+      console.log('Campaign created:', campaignResult);
+
+      const campaignId = campaignResult?.campaign?.id;
+      setCurrentCampaignId(campaignId);
+
+      // 3. Refresh dashboard to show "Started lead scraping" activity log
+      if (typeof onSubmit === 'function') {
+        onSubmit(formData, campaignResult);
+      }
+
+      // 4. Start n8n scraping
+      const n8nPayload = {
+        ...formData,
+        campaign_id: campaignId,
+        user_id: user.user_id
+      };
+
       const resp = await fetch('https://n8n.analytica-data.com/webhook-test/form-submit', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(formData)
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(n8nPayload)
       });
 
       let result = null;
@@ -111,45 +146,49 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
       if (!resp.ok) {
         console.error('Webhook responded with error', resp.status, result);
       } else {
-        // Send scraped employees to backend for storage and fetch updated dashboard
-        let freshDashboardData = null;
-        try {
-          const batches = Array.isArray(result) ? result : [result];
-          const employees = batches.flatMap(b => b.employees || []);
-          if (employees.length > 0) {
-            const storeResponse = await apiPost('/dashboard/scraped', { employees });
-            console.log('Stored scraped:', storeResponse);
+        // 5. Map n8n employees to Lead format for /lead-scraping
+        const batches = Array.isArray(result) ? result : [result];
+        const employees = batches.flatMap(b => b.employees || []);
 
-            // Fetch updated dashboard data to show pending list from backend
-            freshDashboardData = await apiGet('/dashboard/dashboard');
-            console.log('Refreshed dashboard:', freshDashboardData);
+        if (employees.length > 0) {
+          const leads = employees.map(emp => ({
+            Employee_Name: emp.Employee_Name || emp.employee_name || '',
+            Work_Email: emp.Work_Email || emp.work_email || null,
+            Company: emp.Company || emp.company_name || emp.company || '',
+            Work_Mobile_No: emp.Work_Mobile_No || emp.work_mobile_no || emp.phone || null,
+            Category: emp.Category || emp.category || null,
+            Position: emp.Position || emp.position || null,
+            Email_Status: emp.Email_Status || emp.email_status || null,
+            Website: emp.Website || emp.website || null,
+            Domain: emp.Domain || emp.domain || null,
+            Location: emp.Location || emp.location || null,
+            Address: emp.Address || emp.address || null,
+            Promotion_Status: emp.Promotion_Status || emp.promotion_status || null
+          }));
 
-            // Track previous count to identify new employees
-            setPreviousPendingCount(scrapingResults?.ready_to_email_number || 0);
+          // 6. Insert leads via /lead-scraping endpoint
+          const leadResult = await apiPost('/lead-scraping', {
+            user_id: user.user_id,
+            campaign_id: campaignId,
+            leads
+          });
+          console.log('Leads inserted:', leadResult);
 
-            setScrapingResults(freshDashboardData);
-            setSelectedEmployees([]);
-            setActiveView('pending'); // Always show pending view after scraping
-            setShowForm(false); // Keep form hidden after scraping
-            setShowList(true); // Show the list after scraping
+          // 7. Show inserted leads in pending list
+          setPendingLeads(leadResult?.inserted_leads || []);
+          setSelectedEmployees([]);
+          setActiveView('pending');
+          setShowForm(false);
+          setShowList(true);
 
-            // Call onSubmit with scraped results AND fresh dashboard data
-            if (typeof onSubmit === 'function') {
-              const totalScraped = (Array.isArray(result) ? result : [result]).reduce((sum, batch) => sum + (batch.total_scraped || 0), 0);
-              onSubmit(formData, {
-                scraped_data: result,
-                total_scraped: totalScraped,
-                freshDashboardData: freshDashboardData
-              });
-            }
+          // 8. Refresh dashboard to show "Leads scraped" activity log + updated KPIs
+          if (typeof onSubmit === 'function') {
+            onSubmit(formData, leadResult);
           }
-        } catch (err) {
-          console.error('Failed to send scraped to backend', err);
-          // apiPost/apiGet will handle 401 errors and redirect to login
         }
       }
     } catch (err) {
-      console.error('Failed to POST form data to webhook', err);
+      console.error('Failed during campaign creation or scraping', err);
     } finally {
       setIsSubmitting(false);
     }
@@ -173,52 +212,46 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
     setIsApprovingSubmission(true);
 
     try {
-      // Collect selected employees from the pending list using indices
-      const pendingList = scrapingResults?.ready_to_email_names || [];
-      const selectedEmps = selectedEmployees.map(idx => pendingList[idx]).filter(emp => emp);
+      // Collect selected leads from pending list
+      const selectedLeadObjects = selectedEmployees
+        .map(idx => pendingLeads[idx])
+        .filter(Boolean);
 
-      const approvalData = {
-        total_scraped: scrapingResults?.total_leads_scraped || 0,
-        selected_employees: selectedEmps,
-        submission_count: selectedEmps.length
+      const approvalPayload = {
+        user_id: user.user_id,
+        campaign_id: currentCampaignId,
+        type: 'sent',
+        leads: selectedLeadObjects.map(lead => ({
+          lead_id: lead.id,
+          approved: true
+        }))
       };
 
-      // Send approval data to backend
-      let freshDashboardData = null;
+      const approveResult = await apiPost('/leads-approved', approvalPayload);
+      console.log('Leads approved:', approveResult);
 
-      if (approvalData?.selected_employees?.length > 0) {
-        const approveData = await apiPost('/dashboard/approve', {
-          approved_employees: approvalData.selected_employees
-        });
-        console.log('Approval stored:', approveData);
+      // Use response's updated_leads to determine which leads were actually approved
+      const approvedIds = new Set(
+        (approveResult?.updated_leads || []).map(l => l.lead_id)
+      );
 
-        // Fetch updated dashboard data after approval
-        freshDashboardData = await apiGet('/dashboard/dashboard');
-        console.log('Refreshed dashboard after approval:', freshDashboardData);
+      // Move only backend-confirmed approved leads from pending to sent
+      const remainingPending = pendingLeads.filter(l => !approvedIds.has(l.id));
+      const approvedLeadObjects = pendingLeads.filter(l => approvedIds.has(l.id));
+      const newSent = [...sentLeads, ...approvedLeadObjects];
 
-        // Update scrapingResults with fresh data (DON'T reset to null)
-        setScrapingResults(freshDashboardData);
+      setPendingLeads(remainingPending);
+      setSentLeads(newSent);
+      setSelectedEmployees([]);
+      setActiveView('sent');
+      setShowList(true);
 
-        // Clear selection since approved employees are now moved to sent
-        setSelectedEmployees([]);
-
-        // Stay on pending view after approval and keep list visible
-        setActiveView('pending');
-        setShowList(true);
-      }
-
+      // Refresh dashboard to display activity log + updated KPIs
       if (typeof onSubmit === 'function') {
-        onSubmit(formData, {
-          approval_data: approvalData,
-          freshDashboardData: freshDashboardData
-        });
+        onSubmit(formData, approveResult);
       }
-
-      // DON'T reset form or scrapingResults - keep showing the results view
-      // Only reset when "New Scraping" button is clicked
     } catch (err) {
       console.error('Failed to approve submission', err);
-      if (typeof onSubmit === 'function') onSubmit(formData, { error: String(err) });
     } finally {
       setIsApprovingSubmission(false);
     }
@@ -231,12 +264,14 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
     }
   };
 
+  const hasLeads = pendingLeads.length > 0 || sentLeads.length > 0;
+
   // Handle toggle button clicks - always show list when clicked
   const handleToggleClick = (view) => {
     setActiveView(view);
-    if (scrapingResults) {
+    if (hasLeads) {
       setShowList(true);
-      setShowForm(false); // Hide form when viewing list
+      setShowForm(false);
     }
   };
 
@@ -256,7 +291,7 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
             </div>
           </div>
         )}
-        {scrapingResults && showList && !isSubmitting && (
+        {hasLeads && showList && !isSubmitting && (
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center w-10 h-10 bg-success/20 rounded-lg">
               <Icon name="CheckCircle2" size={20} color="var(--color-success)" />
@@ -279,25 +314,25 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
         <div className="flex items-center gap-2 bg-muted/50 p-1 rounded-lg shrink-0">
           <button
             onClick={() => handleToggleClick('pending')}
-            disabled={!scrapingResults}
+            disabled={!hasLeads}
             className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
               activeView === 'pending' && showList
                 ? 'bg-primary text-white shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'
-            } ${!scrapingResults ? 'opacity-50 cursor-not-allowed' : ''}`}
+            } ${!hasLeads ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
-            Pending ({scrapingResults?.ready_to_email_number || 0})
+            Pending ({pendingLeads.length})
           </button>
           <button
             onClick={() => handleToggleClick('sent')}
-            disabled={!scrapingResults}
+            disabled={!hasLeads}
             className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
               activeView === 'sent' && showList
                 ? 'bg-primary text-white shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'
-            } ${!scrapingResults ? 'opacity-50 cursor-not-allowed' : ''}`}
+            } ${!hasLeads ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
-            Sent ({scrapingResults?.emails_sent_number || 0})
+            Sent ({sentLeads.length})
           </button>
         </div>
       </div>
@@ -321,14 +356,14 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
       )}
 
       {/* Results State - Only show when list is requested */}
-      {scrapingResults && showList && !isSubmitting && (
+      {hasLeads && showList && !isSubmitting && (
         <div className="space-y-4 flex-1 flex flex-col overflow-hidden">
-          {/* Total Scraped Summary */}
+          {/* Summary */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-shrink-0">
             <div className="col-span-1 bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 rounded-lg p-4">
               <p className="caption text-muted-foreground text-xs mb-2">Pending for Approval</p>
               <p className="text-3xl font-bold text-primary">
-                {scrapingResults?.ready_to_email_number || 0}
+                {pendingLeads.length}
               </p>
             </div>
             <div className="col-span-1 bg-gradient-to-br from-warning/10 to-warning/5 border border-warning/20 rounded-lg p-4">
@@ -339,7 +374,7 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
             </div>
           </div>
 
-          {/* Employee List - Toggle between Pending and Sent */}
+          {/* Lead List - Toggle between Pending and Sent */}
           <div className="mt-4">
             <div className="bg-card border border-border rounded-lg p-3">
               <div className="max-h-48 overflow-y-auto">
@@ -350,10 +385,10 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
                         <th className="px-3 py-2 text-left">
                           <input
                             type="checkbox"
-                            checked={selectedEmployees.length === (scrapingResults?.ready_to_email_names || []).length && (scrapingResults?.ready_to_email_names || []).length > 0}
+                            checked={selectedEmployees.length === pendingLeads.length && pendingLeads.length > 0}
                             onChange={(e) => {
                               if (e.target.checked) {
-                                setSelectedEmployees((scrapingResults?.ready_to_email_names || []).map((_, idx) => idx));
+                                setSelectedEmployees(pendingLeads.map((_, idx) => idx));
                               } else {
                                 setSelectedEmployees([]);
                               }
@@ -371,55 +406,41 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
                   </thead>
                   <tbody>
                     {activeView === 'pending' ? (
-                      // Pending View - with checkboxes and NEW badges
                       <>
-                        {(scrapingResults?.ready_to_email_names || []).map((emp, idx) => {
-                          const isNew = idx < (scrapingResults?.ready_to_email_number || 0) - previousPendingCount;
-                          return (
-                            <tr key={idx} className="border-b border-border hover:bg-muted/50 transition-colors">
-                              <td className="px-3 py-2">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedEmployees.includes(idx)}
-                                  onChange={() => handleEmployeeSelect(idx)}
-                                  className="w-4 h-4 rounded border-border text-primary focus:ring-2 focus:ring-primary focus:ring-offset-2 cursor-pointer"
-                                  aria-label={`Select ${emp?.employee_name}`}
-                                />
-                              </td>
-                              <td className="px-3 py-2 text-sm text-foreground truncate">
-                                <div className="flex items-center gap-2">
-                                  {emp?.employee_name || '-'}
-                                  {isNew && (
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-success/20 text-success">
-                                      NEW
-                                    </span>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="px-3 py-2 text-sm text-muted-foreground truncate">{emp?.position || '-'}</td>
-                              <td className="px-3 py-2 text-sm text-foreground truncate">{emp?.work_email || '-'}</td>
-                              <td className="px-3 py-2 text-sm text-foreground truncate">{emp?.company_name || '-'}</td>
-                            </tr>
-                          );
-                        })}
-                        {(scrapingResults?.ready_to_email_names || []).length === 0 && (
+                        {pendingLeads.map((lead, idx) => (
+                          <tr key={lead.id || idx} className="border-b border-border hover:bg-muted/50 transition-colors">
+                            <td className="px-3 py-2">
+                              <input
+                                type="checkbox"
+                                checked={selectedEmployees.includes(idx)}
+                                onChange={() => handleEmployeeSelect(idx)}
+                                className="w-4 h-4 rounded border-border text-primary focus:ring-2 focus:ring-primary focus:ring-offset-2 cursor-pointer"
+                                aria-label={`Select ${lead?.name}`}
+                              />
+                            </td>
+                            <td className="px-3 py-2 text-sm text-foreground truncate">{lead?.name || '-'}</td>
+                            <td className="px-3 py-2 text-sm text-muted-foreground truncate">{lead?.position || '-'}</td>
+                            <td className="px-3 py-2 text-sm text-foreground truncate">{lead?.email || '-'}</td>
+                            <td className="px-3 py-2 text-sm text-foreground truncate">{lead?.company || '-'}</td>
+                          </tr>
+                        ))}
+                        {pendingLeads.length === 0 && (
                           <tr>
                             <td colSpan={5} className="px-3 py-4 text-sm text-muted-foreground text-center">No pending leads</td>
                           </tr>
                         )}
                       </>
                     ) : (
-                      // Sent View - without checkboxes
                       <>
-                        {(scrapingResults?.email_sent_names || []).map((emp, idx) => (
-                          <tr key={idx} className="border-b border-border hover:bg-muted/50 transition-colors">
-                            <td className="px-3 py-2 text-sm text-foreground truncate">{emp?.employee_name || '-'}</td>
-                            <td className="px-3 py-2 text-sm text-muted-foreground truncate">{emp?.position || '-'}</td>
-                            <td className="px-3 py-2 text-sm text-foreground truncate">{emp?.work_email || '-'}</td>
-                            <td className="px-3 py-2 text-sm text-foreground truncate">{emp?.company_name || '-'}</td>
+                        {sentLeads.map((lead, idx) => (
+                          <tr key={lead.id || idx} className="border-b border-border hover:bg-muted/50 transition-colors">
+                            <td className="px-3 py-2 text-sm text-foreground truncate">{lead?.name || '-'}</td>
+                            <td className="px-3 py-2 text-sm text-muted-foreground truncate">{lead?.position || '-'}</td>
+                            <td className="px-3 py-2 text-sm text-foreground truncate">{lead?.email || '-'}</td>
+                            <td className="px-3 py-2 text-sm text-foreground truncate">{lead?.company || '-'}</td>
                           </tr>
                         ))}
-                        {(scrapingResults?.email_sent_names || []).length === 0 && (
+                        {sentLeads.length === 0 && (
                           <tr>
                             <td colSpan={4} className="px-3 py-4 text-sm text-muted-foreground text-center">No emails sent yet</td>
                           </tr>
@@ -432,9 +453,7 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
             </div>
           </div>
 
-
-
-          {/* Action Buttons - Only show in Pending view */}
+          {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row gap-3 flex-shrink-0 pt-4">
             {activeView === 'pending' && (
               <Button
@@ -456,12 +475,10 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
               iconName="RotateCcw"
               iconPosition="left"
               onClick={() => {
-                setShowForm(true); // Show form for new scraping
-                setShowList(false); // Hide list when starting new scraping
+                setShowForm(true);
+                setShowList(false);
                 setSelectedEmployees([]);
                 setActiveView('pending');
-                setPreviousPendingCount(0);
-                // Keep scrapingResults so toggle is still visible
               }}
               className="sm:w-auto"
             >
@@ -475,6 +492,26 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
       {showForm && !isSubmitting && (
         <>
           <form onSubmit={handleSubmit} className="space-y-4">
+            <Input
+              label="Campaign Name"
+              type="text"
+              placeholder="e.g., Education Outreach"
+              value={formData?.name}
+              onChange={(e) => handleInputChange('name', e?.target?.value)}
+              error={errors?.name}
+              required
+            />
+
+            <Input
+              label="Campaign Type"
+              type="text"
+              placeholder="e.g., cold outreach, warm lead, partnership"
+              value={formData?.campaignType}
+              onChange={(e) => handleInputChange('campaignType', e?.target?.value)}
+              error={errors?.campaignType}
+              required
+            />
+
             <Select
               label="Target Industry"
               options={industryOptions}
@@ -556,6 +593,8 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
               iconPosition="left"
               onClick={() => {
                 setFormData({
+                  name: '',
+                  campaignType: '',
                   industry: '',
                   area: '',
                   city: '',

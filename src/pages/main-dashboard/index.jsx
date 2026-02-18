@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Helmet } from 'react-helmet';
 import Sidebar from '../../components/navigation/Sidebar';
 import Header from '../../components/navigation/Header';
@@ -8,147 +8,87 @@ import ActivityFeed from './components/ActivityFeed';
 import QuickActions from './components/QuickActions';
 import Icon from '../../components/AppIcon';
 import { apiGet } from '../../utils/api';
+import { useAuth } from '../../context/AuthContext';
 
 const MainDashboard = () => {
+  const { user } = useAuth();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [activities, setActivities] = useState([]);
   const [kpiData, setKpiData] = useState({
     totalScraped: { value: 0, change: 0, changeType: 'neutral' },
     readyToEmail: { value: 0, change: 0, changeType: 'neutral' },
     emailsSent: { value: 0, change: 0, changeType: 'neutral' },
-    successRate: { value: 73, change: 5.7, changeType: 'positive' }
+    successRate: { value: 0, change: 0, changeType: 'neutral' }
   });
 
-  const [dashboardData, setDashboardData] = useState({
-    user_id: null,
-    scraped_leads: [],
-    total_leads_scraped: 0,
-    ready_to_email_number: 0,
-    ready_to_email_names: [],
-    emails_sent_number: 0,
-    email_sent_names: [],
-    pending_leads: []
-  });
-
+  const [dashboardData, setDashboardData] = useState({});
   const [lastUpdate, setLastUpdate] = useState(new Date());
 
-  // Simulated KPI updates removed — KPIs now update only from real API responses.
+  // Fetch dashboard data from backend
+  const fetchDashboard = useCallback(async () => {
+    if (!user?.user_id) return;
 
-  const handleConfigSubmit = (formData, result) => {
-    console.log('Configuration submitted:', formData);
-    console.log('Scraping result:', result);
+    try {
+      const data = await apiGet(`/dashboard/dashboard/${user.user_id}`);
 
-    const now = new Date();
+      setDashboardData(data || {});
 
-    // Case 1: Form submitted (scraping started)
-    if (result === null) {
-      const startActivity = {
-        id: `scraping-${Date.now()}`,
-        type: 'scraping',
-        icon: 'Play',
-        color: 'var(--color-primary)',
-        title: 'Started Lead Scraping',
-        description: `Industry: ${formData?.industry}, Location: ${formData?.location}, Targets: ${formData?.no_of_targets}`,
-        timestamp: now,
-        status: 'info'
-      };
-      setActivities(prev => [startActivity, ...prev]);
-    }
-    // Case 2: Results received from API (scraping completed)
-    else if (result?.total_scraped && !result?.approval_data) {
-      const totalScraped = result?.total_scraped || 0;
-      const scrapedActivity = {
-        id: `scraped-${Date.now()}`,
-        type: 'scraping',
-        icon: 'CheckCircle2',
-        color: 'var(--color-success)',
-        title: `${totalScraped} Leads Scraped`,
-        description: `Successfully scraped and processed ${totalScraped} leads`,
-        timestamp: now,
-        status: 'success'
-      };
-      setActivities(prev => [scrapedActivity, ...prev]);
+      // Aggregate KPIs across all campaigns
+      const kpis = data?.dashboard_kpis || [];
+      const totalLeads = kpis.reduce((sum, c) => sum + (c.total_leads || 0), 0);
+      const readyToEmail = kpis.reduce((sum, c) => sum + (c.ready_to_email || 0), 0);
+      const emailsSent = kpis.reduce((sum, c) => sum + (c.emails_sent || 0), 0);
+      const successRate = kpis.length > 0
+        ? kpis.reduce((sum, c) => sum + (c.success_rate || 0), 0) / kpis.length
+        : 0;
 
-      // Update dashboard data and KPI cards from fresh backend data
-      if (result?.freshDashboardData) {
-        setDashboardData(result.freshDashboardData);
+      setKpiData({
+        totalScraped: { value: totalLeads, change: 0, changeType: 'neutral' },
+        readyToEmail: { value: readyToEmail, change: 0, changeType: 'neutral' },
+        emailsSent: { value: emailsSent, change: 0, changeType: 'neutral' },
+        successRate: { value: parseFloat(successRate.toFixed(2)), change: 0, changeType: 'neutral' }
+      });
 
-        // Update KPI cards from fresh backend data
-        setKpiData(prev => ({
-          ...prev,
-          totalScraped: { value: result.freshDashboardData?.total_leads_scraped || 0, change: prev.totalScraped.change, changeType: prev.totalScraped.changeType },
-          readyToEmail: { value: result.freshDashboardData?.ready_to_email_number || 0, change: prev.readyToEmail.change, changeType: prev.readyToEmail.changeType },
-          emailsSent: { value: result.freshDashboardData?.emails_sent_number || 0, change: prev.emailsSent.change, changeType: prev.emailsSent.changeType }
+      // Map activity logs from backend (sorted latest first)
+      const logs = data?.activity_logs || [];
+      const mappedActivities = logs
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+        .map((log, index) => ({
+          id: `${log.campaign_id}-${log.created_at}-${index}`,
+          icon: log.action?.toLowerCase().includes('approved') ? 'ThumbsUp'
+            : log.action?.toLowerCase().includes('scrap') ? 'CheckCircle2'
+            : 'Play',
+          color: log.action?.toLowerCase().includes('approved') ? 'var(--color-success)'
+            : log.action?.toLowerCase().includes('scrap') ? 'var(--color-primary)'
+            : 'var(--color-warning)',
+          title: log.action,
+          description: log.campaign_name || '',
+          timestamp: log.created_at,
+          status: 'success'
         }));
 
-        setLastUpdate(now);
-      }
+      setActivities(mappedActivities);
+      setLastUpdate(new Date());
+    } catch (err) {
+      console.error('Error fetching dashboard', err);
     }
-    // Case 3: Approval (leads approved) - use fresh dashboard data from backend
-    else if (result?.approval_data && result?.freshDashboardData) {
-      const approvedCount = result?.approval_data?.submission_count || 0;
+  }, [user?.user_id]);
 
-      const approvedActivity = {
-        id: `approved-${Date.now()}`,
-        type: 'approval',
-        icon: 'ThumbsUp',
-        color: 'var(--color-success)',
-        title: `${approvedCount} Leads Approved`,
-        description: `${approvedCount} leads selected and approved for email`,
-        timestamp: now,
-        status: 'success'
-      };
+  // Fetch on mount and when user_id becomes available
+  useEffect(() => {
+    fetchDashboard();
+  }, [fetchDashboard]);
 
-      setActivities(prev => [approvedActivity, ...prev]);
-      
-      // Update dashboard data from backend response
-      setDashboardData(result.freshDashboardData);
-      
-      // Update KPI cards from fresh backend data (not from calculation)
-      setKpiData(prev => ({
-        ...prev,
-        totalScraped: { value: result.freshDashboardData?.total_leads_scraped || 0, change: prev.totalScraped.change, changeType: prev.totalScraped.changeType },
-        readyToEmail: { value: result.freshDashboardData?.ready_to_email_number || 0, change: prev.readyToEmail.change, changeType: prev.readyToEmail.changeType },
-        emailsSent: { value: result.freshDashboardData?.emails_sent_number || 0, change: prev.emailsSent.change, changeType: prev.emailsSent.changeType }
-      }));
-
-      setLastUpdate(now);
-    }
+  const handleConfigSubmit = (formData, result) => {
+    // Re-fetch dashboard data from backend after any action
+    fetchDashboard();
   };
 
   const handleQuickAction = (actionId) => {
-    console.log('Quick action triggered:', actionId);
-    
     if (actionId === 'refresh') {
-      setLastUpdate(new Date());
+      fetchDashboard();
     }
   };
-
-  // Fetch dashboard data from backend when dashboard mounts
-  useEffect(() => {
-    const fetchDashboard = async () => {
-      try {
-        // apiGet will automatically handle 401 errors and redirect to login
-        const data = await apiGet('/dashboard/dashboard');
-
-        setDashboardData(data || {});
-
-        // Update KPI cards from backend values
-        setKpiData(prev => ({
-          ...prev,
-          totalScraped: { value: data?.total_leads_scraped || 0, change: prev.totalScraped.change, changeType: prev.totalScraped.changeType },
-          readyToEmail: { value: data?.ready_to_email_number || 0, change: prev.readyToEmail.change, changeType: prev.readyToEmail.changeType },
-          emailsSent: { value: data?.emails_sent_number || 0, change: prev.emailsSent.change, changeType: prev.emailsSent.changeType }
-        }));
-
-      } catch (err) {
-        console.error('Error fetching dashboard', err);
-        // Error is already handled by apiGet (redirects to login on 401)
-      }
-    };
-
-    fetchDashboard();
-  }, [lastUpdate]);
 
   return (
     <>

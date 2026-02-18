@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Helmet } from 'react-helmet';
 import Sidebar from '../../components/navigation/Sidebar';
 import Header from '../../components/navigation/Header';
@@ -8,174 +8,191 @@ import CampaignChart from './components/CampaignChart';
 import CampaignLeaderboard from './components/CampaignLeaderboard';
 import ConversionFunnel from './components/ConversionFunnel';
 import FilterPanel from './components/FilterPanel';
+import { apiGet } from '../../utils/api';
+import { useAuth } from '../../context/AuthContext';
 
 const CampaignPerformance = () => {
+  const { user } = useAuth();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [timeRange, setTimeRange] = useState('30d');
   const [lastUpdated, setLastUpdated] = useState(new Date());
+  const [loading, setLoading] = useState(true);
+
+  const [kpiData, setKpiData] = useState([
+    { title: "Total Campaigns", value: "0", change: "", changeType: "neutral", icon: "Mail", iconColor: "var(--color-primary)" },
+    { title: "Average Open Rate", value: "0%", change: "", changeType: "neutral", icon: "Eye", iconColor: "var(--color-success)" },
+    { title: "Click-Through Rate", value: "0%", change: "", changeType: "neutral", icon: "MousePointer", iconColor: "var(--color-warning)" },
+    { title: "Conversion Rate", value: "0%", change: "", changeType: "neutral", icon: "Target", iconColor: "var(--color-accent)" }
+  ]);
+  const [chartData, setChartData] = useState([]);
+  const [topCampaigns, setTopCampaigns] = useState([]);
+  const [funnelStages, setFunnelStages] = useState([]);
+
+  const fetchCampaignData = useCallback(async () => {
+    if (!user?.user_id) return;
+
+    try {
+      setLoading(true);
+      const data = await apiGet(`/campaign-kpis/${user.user_id}`);
+      const campaigns = data?.campaign_kpis || [];
+
+      if (campaigns.length === 0) {
+        setLoading(false);
+        return;
+      }
+
+      // --- KPI Cards ---
+      const totalCampaigns = campaigns.length;
+
+      const avgOpenRate = campaigns.reduce((sum, c) => sum + (c.avg_open_rate || 0), 0) / totalCampaigns;
+      const avgClickRate = campaigns.reduce((sum, c) => sum + (c.avg_click_through_rate || 0), 0) / totalCampaigns;
+      const avgConversionRate = campaigns.reduce((sum, c) => sum + (c.conversion_rate || 0), 0) / totalCampaigns;
+
+      setKpiData([
+        {
+          title: "Total Campaigns",
+          value: String(totalCampaigns),
+          change: "",
+          changeType: "neutral",
+          icon: "Mail",
+          iconColor: "var(--color-primary)"
+        },
+        {
+          title: "Average Open Rate",
+          value: `${avgOpenRate.toFixed(1)}%`,
+          change: "",
+          changeType: avgOpenRate > 0 ? "positive" : "neutral",
+          icon: "Eye",
+          iconColor: "var(--color-success)"
+        },
+        {
+          title: "Click-Through Rate",
+          value: `${avgClickRate.toFixed(1)}%`,
+          change: "",
+          changeType: avgClickRate > 0 ? "positive" : "neutral",
+          icon: "MousePointer",
+          iconColor: "var(--color-warning)"
+        },
+        {
+          title: "Conversion Rate",
+          value: `${avgConversionRate.toFixed(1)}%`,
+          change: "",
+          changeType: avgConversionRate > 0 ? "positive" : "neutral",
+          icon: "Target",
+          iconColor: "var(--color-accent)"
+        }
+      ]);
+
+      // --- Chart Data (one bar per campaign) ---
+      const chartItems = campaigns.map((c) => ({
+        period: c.name,
+        emailsSent: c.total_email_sent || 0,
+        successRate: c.conversion_rate || 0
+      }));
+      setChartData(chartItems);
+
+      // --- Top Campaigns (sorted by performance: conversion_rate desc) ---
+      const sorted = [...campaigns].sort((a, b) => {
+        const scoreA = (a.conversion_rate || 0) + (a.avg_open_rate || 0) + (a.avg_click_through_rate || 0);
+        const scoreB = (b.conversion_rate || 0) + (b.avg_open_rate || 0) + (b.avg_click_through_rate || 0);
+        return scoreB - scoreA;
+      });
+
+      const top = sorted.slice(0, 5).map((c, idx) => ({
+        id: c.campaign_id || idx + 1,
+        name: c.name,
+        type: "Campaign",
+        successRate: parseFloat((c.conversion_rate || 0).toFixed(1)),
+        emailsSent: c.total_email_sent || 0,
+        openRate: parseFloat((c.avg_open_rate || 0).toFixed(1)),
+        clickRate: parseFloat((c.avg_click_through_rate || 0).toFixed(1)),
+        replyRate: parseFloat((c.conversion_rate || 0).toFixed(1))
+      }));
+      setTopCampaigns(top);
+
+      // --- Conversion Funnel (aggregate across all campaigns) ---
+      const totalSent = campaigns.reduce((sum, c) => sum + (c.total_email_sent || 0), 0);
+      const totalOpened = campaigns.reduce((sum, c) => sum + (c.open_count || 0), 0);
+      const totalClicked = campaigns.reduce((sum, c) => sum + (c.click_through_count || 0), 0);
+      const totalConverted = campaigns.reduce((sum, c) => sum + (c.converted_count || 0), 0);
+
+      const openPct = totalSent > 0 ? (totalOpened / totalSent) * 100 : 0;
+      const clickPct = totalSent > 0 ? (totalClicked / totalSent) * 100 : 0;
+      const convertPct = totalSent > 0 ? (totalConverted / totalSent) * 100 : 0;
+
+      const openDropOff = totalSent > 0 ? ((totalSent - totalOpened) / totalSent) * 100 : 0;
+      const clickDropOff = totalOpened > 0 ? ((totalOpened - totalClicked) / totalOpened) * 100 : 0;
+      const convertDropOff = totalClicked > 0 ? ((totalClicked - totalConverted) / totalClicked) * 100 : 0;
+
+      setFunnelStages([
+        {
+          id: 1,
+          name: "Emails Sent",
+          description: "Initial outreach delivered",
+          count: totalSent,
+          conversionRate: 100,
+          dropOffRate: parseFloat(openDropOff.toFixed(1)),
+          icon: "Send",
+          status: "default"
+        },
+        {
+          id: 2,
+          name: "Emails Opened",
+          description: "Recipients viewed email",
+          count: totalOpened,
+          conversionRate: parseFloat(openPct.toFixed(1)),
+          dropOffRate: parseFloat(clickDropOff.toFixed(1)),
+          icon: "Eye",
+          status: "default"
+        },
+        {
+          id: 3,
+          name: "Links Clicked",
+          description: "Engaged with content",
+          count: totalClicked,
+          conversionRate: parseFloat(clickPct.toFixed(1)),
+          dropOffRate: parseFloat(convertDropOff.toFixed(1)),
+          icon: "MousePointer",
+          status: "warning"
+        },
+        {
+          id: 4,
+          name: "Converted",
+          description: "Successfully converted leads",
+          count: totalConverted,
+          conversionRate: parseFloat(convertPct.toFixed(1)),
+          dropOffRate: 0,
+          icon: "CheckCircle",
+          status: "success"
+        }
+      ]);
+
+      setLastUpdated(new Date());
+    } catch (err) {
+      console.error('Error fetching campaign KPIs:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.user_id]);
 
   useEffect(() => {
+    fetchCampaignData();
+  }, [fetchCampaignData]);
+
+  // Auto-refresh every 15 minutes
+  useEffect(() => {
     const interval = setInterval(() => {
-      setLastUpdated(new Date());
+      fetchCampaignData();
     }, 900000);
-
     return () => clearInterval(interval);
-  }, []);
-
-  const kpiData = [
-    {
-      title: "Total Campaigns",
-      value: "47",
-      change: "+12.5%",
-      changeType: "positive",
-      icon: "Mail",
-      iconColor: "var(--color-primary)"
-    },
-    {
-      title: "Average Open Rate",
-      value: "34.8%",
-      change: "+5.2%",
-      changeType: "positive",
-      icon: "Eye",
-      iconColor: "var(--color-success)"
-    },
-    {
-      title: "Click-Through Rate",
-      value: "12.3%",
-      change: "+2.1%",
-      changeType: "positive",
-      icon: "MousePointer",
-      iconColor: "var(--color-warning)"
-    },
-    {
-      title: "Conversion Rate",
-      value: "8.7%",
-      change: "+1.8%",
-      changeType: "positive",
-      icon: "Target",
-      iconColor: "var(--color-accent)"
-    }
-  ];
-
-  const chartData = [
-    { period: "Week 1", emailsSent: 2400, successRate: 32.5 },
-    { period: "Week 2", emailsSent: 3200, successRate: 35.8 },
-    { period: "Week 3", emailsSent: 2800, successRate: 33.2 },
-    { period: "Week 4", emailsSent: 3600, successRate: 38.4 },
-    { period: "Week 5", emailsSent: 4100, successRate: 36.7 },
-    { period: "Week 6", emailsSent: 3800, successRate: 39.1 },
-    { period: "Week 7", emailsSent: 4500, successRate: 41.2 },
-    { period: "Week 8", emailsSent: 4200, successRate: 40.5 }
-  ];
-
-  const topCampaigns = [
-    {
-      id: 1,
-      name: "Tech Startup Outreach Q1",
-      type: "Cold Outreach",
-      successRate: 42.8,
-      emailsSent: 1250,
-      openRate: 38.5,
-      clickRate: 15.2,
-      replyRate: 8.4
-    },
-    {
-      id: 2,
-      name: "Healthcare Decision Makers",
-      type: "Follow-up Sequence",
-      successRate: 39.6,
-      emailsSent: 980,
-      openRate: 35.8,
-      clickRate: 13.7,
-      replyRate: 7.2
-    },
-    {
-      id: 3,
-      name: "Finance Industry Leaders",
-      type: "Lead Nurture",
-      successRate: 37.2,
-      emailsSent: 1420,
-      openRate: 33.4,
-      clickRate: 12.8,
-      replyRate: 6.9
-    },
-    {
-      id: 4,
-      name: "Retail Chain Expansion",
-      type: "Cold Outreach",
-      successRate: 35.8,
-      emailsSent: 890,
-      openRate: 31.2,
-      clickRate: 11.5,
-      replyRate: 6.3
-    },
-    {
-      id: 5,
-      name: "Manufacturing Partners",
-      type: "Re-engagement",
-      successRate: 33.4,
-      emailsSent: 760,
-      openRate: 29.8,
-      clickRate: 10.2,
-      replyRate: 5.8
-    }
-  ];
-
-  const funnelStages = [
-    {
-      id: 1,
-      name: "Emails Sent",
-      description: "Initial outreach delivered",
-      count: 15420,
-      conversionRate: 100,
-      dropOffRate: 65.2,
-      icon: "Send",
-      status: "default"
-    },
-    {
-      id: 2,
-      name: "Emails Opened",
-      description: "Recipients viewed email",
-      count: 5366,
-      conversionRate: 34.8,
-      dropOffRate: 64.7,
-      icon: "Eye",
-      status: "default"
-    },
-    {
-      id: 3,
-      name: "Links Clicked",
-      description: "Engaged with content",
-      count: 1895,
-      conversionRate: 12.3,
-      dropOffRate: 29.3,
-      icon: "MousePointer",
-      status: "warning"
-    },
-    {
-      id: 4,
-      name: "Responses Received",
-      description: "Active conversation started",
-      count: 1340,
-      conversionRate: 8.7,
-      dropOffRate: 18.5,
-      icon: "MessageSquare",
-      status: "success"
-    },
-    {
-      id: 5,
-      name: "Qualified Leads",
-      description: "Meeting scheduled or demo requested",
-      count: 1092,
-      conversionRate: 7.1,
-      dropOffRate: 0,
-      icon: "CheckCircle",
-      status: "success"
-    }
-  ];
+  }, [fetchCampaignData]);
 
   const handleFilterChange = (filters) => {
     console.log('Filters applied:', filters);
+  };
+
+  const handleRefresh = () => {
+    fetchCampaignData();
   };
 
   return (
@@ -214,6 +231,7 @@ const CampaignPerformance = () => {
                   </div>
 
                   <button
+                    onClick={handleRefresh}
                     className="flex items-center justify-center w-10 h-10 bg-card border border-border rounded-lg hover:bg-muted transition-all duration-250 touch-target"
                     title="Refresh data"
                   >
@@ -222,75 +240,88 @@ const CampaignPerformance = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-                {kpiData?.map((kpi, index) => (
-                  <div key={index} className="animate-stagger">
-                    <KPICard {...kpi} />
-                  </div>
-                ))}
-              </div>
-
-              <FilterPanel onFilterChange={handleFilterChange} />
-
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6">
-                <div className="lg:col-span-8 animate-fade-in">
-                  <CampaignChart 
-                    data={chartData} 
-                    timeRange={timeRange}
-                    onTimeRangeChange={setTimeRange}
-                  />
-                </div>
-
-                <div className="lg:col-span-4 animate-fade-in">
-                  <CampaignLeaderboard campaigns={topCampaigns} />
-                </div>
-              </div>
-
-              <div className="animate-fade-in">
-                <ConversionFunnel stages={funnelStages} />
-              </div>
-
-              <div className="bg-card border border-border rounded-xl p-4 md:p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h2 className="text-lg md:text-xl font-semibold text-foreground mb-1">Performance Insights</h2>
-                    <p className="caption text-muted-foreground text-sm">AI-powered recommendations</p>
-                  </div>
-                  <div className="flex items-center justify-center w-10 h-10 bg-primary/10 rounded-lg">
-                    <Icon name="Lightbulb" size={20} color="var(--color-primary)" />
+              {loading ? (
+                <div className="flex items-center justify-center py-20">
+                  <div className="flex flex-col items-center gap-3">
+                    <Icon name="Loader2" size={32} className="animate-spin text-primary" />
+                    <p className="text-sm text-muted-foreground">Loading campaign data...</p>
                   </div>
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="p-4 bg-success/10 border border-success/20 rounded-lg">
-                    <div className="flex items-start gap-3">
-                      <div className="flex items-center justify-center w-8 h-8 bg-success/20 rounded-lg flex-shrink-0">
-                        <Icon name="TrendingUp" size={16} color="var(--color-success)" />
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+                    {kpiData?.map((kpi, index) => (
+                      <div key={index} className="animate-stagger">
+                        <KPICard {...kpi} />
                       </div>
-                      <div>
-                        <h3 className="text-sm font-semibold text-foreground mb-1">Strong Performance</h3>
-                        <p className="caption text-muted-foreground text-xs">
-                          Your Tech Startup Outreach campaign is performing 52% above industry average. Consider scaling this approach to similar segments.
-                        </p>
-                      </div>
+                    ))}
+                  </div>
+
+                  <FilterPanel onFilterChange={handleFilterChange} />
+
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6">
+                    <div className="lg:col-span-8 animate-fade-in">
+                      <CampaignChart
+                        data={chartData}
+                        timeRange={timeRange}
+                        onTimeRangeChange={setTimeRange}
+                      />
+                    </div>
+
+                    <div className="lg:col-span-4 animate-fade-in">
+                      <CampaignLeaderboard campaigns={topCampaigns} />
                     </div>
                   </div>
 
-                  <div className="p-4 bg-warning/10 border border-warning/20 rounded-lg">
-                    <div className="flex items-start gap-3">
-                      <div className="flex items-center justify-center w-8 h-8 bg-warning/20 rounded-lg flex-shrink-0">
-                        <Icon name="AlertTriangle" size={16} color="var(--color-warning)" />
+                  <div className="animate-fade-in">
+                    <ConversionFunnel stages={funnelStages} />
+                  </div>
+
+                  {topCampaigns.length > 0 && (
+                    <div className="bg-card border border-border rounded-xl p-4 md:p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h2 className="text-lg md:text-xl font-semibold text-foreground mb-1">Performance Insights</h2>
+                          <p className="caption text-muted-foreground text-sm">Data-driven recommendations</p>
+                        </div>
+                        <div className="flex items-center justify-center w-10 h-10 bg-primary/10 rounded-lg">
+                          <Icon name="Lightbulb" size={20} color="var(--color-primary)" />
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="text-sm font-semibold text-foreground mb-1">Optimization Opportunity</h3>
-                        <p className="caption text-muted-foreground text-xs">
-                          Click-to-response conversion dropped 18% this week. Review email content and CTA placement for better engagement.
-                        </p>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="p-4 bg-success/10 border border-success/20 rounded-lg">
+                          <div className="flex items-start gap-3">
+                            <div className="flex items-center justify-center w-8 h-8 bg-success/20 rounded-lg flex-shrink-0">
+                              <Icon name="TrendingUp" size={16} color="var(--color-success)" />
+                            </div>
+                            <div>
+                              <h3 className="text-sm font-semibold text-foreground mb-1">Top Performer</h3>
+                              <p className="caption text-muted-foreground text-xs">
+                                Your &quot;{topCampaigns[0]?.name}&quot; campaign has the highest performance score with a {topCampaigns[0]?.openRate}% open rate and {topCampaigns[0]?.successRate}% conversion rate.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="p-4 bg-primary/10 border border-primary/20 rounded-lg">
+                          <div className="flex items-start gap-3">
+                            <div className="flex items-center justify-center w-8 h-8 bg-primary/20 rounded-lg flex-shrink-0">
+                              <Icon name="BarChart3" size={16} color="var(--color-primary)" />
+                            </div>
+                            <div>
+                              <h3 className="text-sm font-semibold text-foreground mb-1">Overall Summary</h3>
+                              <p className="caption text-muted-foreground text-xs">
+                                Across {kpiData[0]?.value} campaigns, your average open rate is {kpiData[1]?.value} and click-through rate is {kpiData[2]?.value}.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </div>
-              </div>
+                  )}
+                </>
+              )}
             </div>
           </main>
         </div>
