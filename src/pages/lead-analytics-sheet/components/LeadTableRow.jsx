@@ -1,39 +1,42 @@
 import { useState } from 'react';
 import Icon from '../../../components/AppIcon';
-import Image from '../../../components/AppImage';
 
-const LeadTableRow = ({ lead, isSelected, onSelect, onEdit }) => {
+const LeadTableRow = ({ lead, isSelected, onSelect }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
   const getStatusColor = (status) => {
+    const s = status?.toLowerCase();
     const colors = {
       new: 'bg-primary/10 text-primary',
       contacted: 'bg-warning/10 text-warning',
       qualified: 'bg-success/10 text-success',
       nurturing: 'bg-secondary/10 text-secondary',
-      converted: 'bg-success/20 text-success'
+      converted: 'bg-success/20 text-success',
+      approved: 'bg-success/10 text-success',
+      pending: 'bg-warning/10 text-warning',
+      rejected: 'bg-error/10 text-error'
     };
-    return colors?.[status] || 'bg-muted text-muted-foreground';
-  };
-
-  const getQualityColor = (score) => {
-    if (score >= 90) return 'text-success';
-    if (score >= 70) return 'text-warning';
-    if (score >= 50) return 'text-secondary';
-    return 'text-muted-foreground';
+    return colors[s] || 'bg-muted text-muted-foreground';
   };
 
   const formatDate = (date) => {
-    return new Date(date)?.toLocaleDateString('en-US', {
+    if (!date) return 'N/A';
+    return new Date(date).toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
       year: 'numeric'
     });
   };
 
+  const lastContacted = formatDate(lead?.last_contacted || lead?.updated_at || lead?.created_at);
+  const statusLabel = lead?.event_type
+    ? lead.event_type.charAt(0).toUpperCase() + lead.event_type.slice(1)
+    : '—';
+
   return (
     <>
       <tr className="border-b border-border hover:bg-muted/50 transition-colors">
+        {/* Checkbox */}
         <td className="px-4 py-3">
           <input
             type="checkbox"
@@ -43,120 +46,93 @@ const LeadTableRow = ({ lead, isSelected, onSelect, onEdit }) => {
             aria-label={`Select ${lead?.name}`}
           />
         </td>
-        
+
+        {/* Contact Name + Position */}
         <td className="px-4 py-3">
-          <div className="flex items-center gap-3">
-            <Image
-              src={lead?.avatar}
-              alt={lead?.avatarAlt}
-              className="w-10 h-10 rounded-full object-cover flex-shrink-0"
-            />
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-foreground truncate">{lead?.name}</p>
-              <p className="caption text-muted-foreground text-xs truncate">{lead?.title}</p>
-            </div>
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-foreground truncate">
+              {lead?.name || '—'}
+            </p>
+            <p className="text-xs text-muted-foreground truncate">{lead?.position || '—'}</p>
           </div>
         </td>
-        
+
+        {/* Company + Category */}
         <td className="px-4 py-3">
-          <p className="text-sm text-foreground truncate">{lead?.company}</p>
-          <p className="caption text-muted-foreground text-xs truncate">{lead?.industry}</p>
+          <p className="text-sm text-foreground truncate">{lead?.company || '—'}</p>
+          <p className="text-xs text-muted-foreground truncate">{lead?.category || '—'}</p>
         </td>
-        
+
+        {/* Email */}
         <td className="px-4 py-3">
-          <p className="text-sm text-foreground truncate">{lead?.email}</p>
+          <p className="text-sm text-foreground truncate">{lead?.email || '—'}</p>
         </td>
-        
+
+        {/* Phone */}
         <td className="px-4 py-3">
-          <p className="text-sm text-foreground whitespace-nowrap">{lead?.phone}</p>
+          <p className="text-sm text-foreground whitespace-nowrap">
+            {lead?.phone || '—'}
+          </p>
         </td>
-        
+
+        {/* Status — from DB column "event_type" */}
         <td className="px-4 py-3">
-          <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${getStatusColor(lead?.status)}`}>
-            {lead?.status?.charAt(0)?.toUpperCase() + lead?.status?.slice(1)}
+          <span
+            className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${getStatusColor(lead?.event_type)}`}
+          >
+            {statusLabel}
           </span>
         </td>
-        
+
+        {/* Last Contacted */}
         <td className="px-4 py-3">
-          <div className="flex items-center gap-2">
-            <span className={`text-sm font-semibold ${getQualityColor(lead?.qualityScore)}`}>
-              {lead?.qualityScore}
-            </span>
-            <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
-              <div
-                className={`h-full ${getQualityColor(lead?.qualityScore)} bg-current`}
-                style={{ width: `${lead?.qualityScore}%` }}
-              />
-            </div>
-          </div>
+          <p className="text-sm text-foreground whitespace-nowrap">{lastContacted}</p>
         </td>
-        
+
+        {/* Actions — chevron that expands the detail row below */}
         <td className="px-4 py-3">
-          <span className="text-sm text-foreground capitalize">{lead?.source?.replace('_', ' ')}</span>
-        </td>
-        
-        <td className="px-4 py-3">
-          <p className="text-sm text-foreground whitespace-nowrap">{formatDate(lead?.lastContact)}</p>
-        </td>
-        
-        <td className="px-4 py-3">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setIsExpanded(!isExpanded)}
-              className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-muted transition-colors touch-target"
-              aria-label="View details"
-            >
-              <Icon name={isExpanded ? 'ChevronUp' : 'ChevronDown'} size={16} />
-            </button>
-            <button
-              onClick={() => onEdit(lead)}
-              className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-muted transition-colors touch-target"
-              aria-label="Edit lead"
-            >
-              <Icon name="Edit2" size={16} />
-            </button>
-          </div>
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-muted transition-colors touch-target"
+            aria-label={isExpanded ? 'Collapse details' : 'Expand details'}
+          >
+            <Icon name={isExpanded ? 'ChevronUp' : 'ChevronDown'} size={16} />
+          </button>
         </td>
       </tr>
+
+      {/* Expanded detail row */}
       {isExpanded && (
         <tr className="bg-muted/30 border-b border-border animate-fade-in">
-          <td colSpan="10" className="px-4 py-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <td colSpan="8" className="px-6 py-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
-                <p className="caption text-muted-foreground text-xs mb-1">Location</p>
-                <p className="text-sm text-foreground">{lead?.location}</p>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Address</p>
+                <p className="text-sm text-foreground">{lead?.address || 'N/A'}</p>
               </div>
-              
+
               <div>
-                <p className="caption text-muted-foreground text-xs mb-1">Company Size</p>
-                <p className="text-sm text-foreground">{lead?.companySize}</p>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Location</p>
+                <p className="text-sm text-foreground">{lead?.location || 'N/A'}</p>
               </div>
-              
+
               <div>
-                <p className="caption text-muted-foreground text-xs mb-1">Revenue</p>
-                <p className="text-sm text-foreground">{lead?.revenue}</p>
-              </div>
-              
-              <div>
-                <p className="caption text-muted-foreground text-xs mb-1">LinkedIn</p>
-                <a href={lead?.linkedin} className="text-sm text-primary hover:underline" target="_blank" rel="noopener noreferrer">
-                  View Profile
-                </a>
-              </div>
-              
-              <div>
-                <p className="caption text-muted-foreground text-xs mb-1">Engagement Score</p>
-                <p className="text-sm text-foreground">{lead?.engagementScore}/100</p>
-              </div>
-              
-              <div>
-                <p className="caption text-muted-foreground text-xs mb-1">Last Activity</p>
-                <p className="text-sm text-foreground">{lead?.lastActivity}</p>
-              </div>
-              
-              <div className="md:col-span-2 lg:col-span-3">
-                <p className="caption text-muted-foreground text-xs mb-1">Notes</p>
-                <p className="text-sm text-foreground">{lead?.notes}</p>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Company Website</p>
+                {lead?.website ? (
+                  <a
+                    href={
+                      lead.website.startsWith('http') ? lead.website : `https://${lead.website}`
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-primary hover:underline flex items-center gap-1 break-all"
+                  >
+                    {lead.website}
+                    <Icon name="ExternalLink" size={12} className="flex-shrink-0" />
+                  </a>
+                ) : (
+                  <p className="text-sm text-muted-foreground">N/A</p>
+                )}
               </div>
             </div>
           </td>

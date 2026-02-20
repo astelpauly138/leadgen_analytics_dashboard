@@ -10,14 +10,13 @@ const KPICard = ({ title, value, change, changeType, icon, sparklineData, color 
     const end = Number(value) || 0;
 
     if (start === end) {
-      // nothing to animate
       prevValueRef.current = end;
       setAnimatedValue(end);
       return;
     }
 
-    const duration = 500; // Reduced from 1000ms to 500ms for faster animation
-    const steps = 30; // Reduced steps for smoother faster animation
+    const duration = 250;
+    const steps = 15;
     const stepTime = duration / steps;
     const delta = end - start;
     const increment = delta / steps;
@@ -39,10 +38,12 @@ const KPICard = ({ title, value, change, changeType, icon, sparklineData, color 
   }, [value]);
 
   const isPositive = changeType === 'positive';
-  const changeColor = isPositive ? 'text-success' : 'text-error';
-  const changeIcon = isPositive ? 'TrendingUp' : 'TrendingDown';
+  const isNegative = changeType === 'negative';
+  const isNeutral = !isPositive && !isNegative;
 
-  // Only process sparklineData if it exists
+  const changeColor = isPositive ? 'text-success' : isNegative ? 'text-error' : 'text-muted-foreground';
+  const changeIcon = isPositive ? 'TrendingUp' : isNegative ? 'TrendingDown' : 'Minus';
+
   const normalizedData = sparklineData && sparklineData.length > 0
     ? (() => {
         const maxSparkline = Math.max(...sparklineData);
@@ -59,7 +60,7 @@ const KPICard = ({ title, value, change, changeType, icon, sparklineData, color 
             {animatedValue?.toLocaleString()}
           </h3>
         </div>
-        <div 
+        <div
           className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-lg"
           style={{ backgroundColor: `${color}20` }}
         >
@@ -70,7 +71,11 @@ const KPICard = ({ title, value, change, changeType, icon, sparklineData, color 
         <div className="flex items-center gap-2">
           <div className={`flex items-center gap-1 ${changeColor}`}>
             <Icon name={changeIcon} size={14} />
-            <span className="text-xs md:text-sm font-medium">{change}%</span>
+            <span className="text-xs md:text-sm font-medium">
+              {isNeutral || change === null || change === undefined
+                ? 'N/A'
+                : `${Math.abs(change)}%`}
+            </span>
           </div>
           <span className="caption text-muted-foreground text-xs">vs last week</span>
         </div>

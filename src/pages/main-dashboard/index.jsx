@@ -10,19 +10,83 @@ import Icon from '../../components/AppIcon';
 import { apiGet } from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
 
+const getChangeType = (pct) => {
+  if (pct === null || pct === undefined) return 'neutral';
+  if (pct > 0) return 'positive';
+  if (pct < 0) return 'negative';
+  return 'neutral';
+};
+
+const buildKpiFromAll = (kpisAll) => {
+  if (!kpisAll || kpisAll.length === 0) return null;
+  const d = kpisAll[0];
+  return {
+    totalScraped: {
+      value: d.total_leads_all || 0,
+      change: d.total_leads_last_week_comparison_percent_all,
+      changeType: getChangeType(d.total_leads_last_week_comparison_percent_all)
+    },
+    readyToEmail: {
+      value: d.ready_to_email_count_all || 0,
+      change: d.ready_to_email_last_week_comparison_percent_all,
+      changeType: getChangeType(d.ready_to_email_last_week_comparison_percent_all)
+    },
+    emailsSent: {
+      value: d.emails_sent_all || 0,
+      change: d.email_sent_last_week_comparison_percent_all,
+      changeType: getChangeType(d.email_sent_last_week_comparison_percent_all)
+    },
+    successRate: {
+      value: d.success_rate_all || 0,
+      change: d.success_rate_last_week_comparison_percent_all,
+      changeType: getChangeType(d.success_rate_last_week_comparison_percent_all)
+    }
+  };
+};
+
+const buildKpiFromCampaign = (kpis, campaignName) => {
+  const d = kpis.find(c => c.campaign_name === campaignName);
+  if (!d) return null;
+  return {
+    totalScraped: {
+      value: d.total_leads || 0,
+      change: d.total_leads_last_week_comparison_percent,
+      changeType: getChangeType(d.total_leads_last_week_comparison_percent)
+    },
+    readyToEmail: {
+      value: d.ready_to_email_count || 0,
+      change: d.ready_to_email_last_week_comparison_percent,
+      changeType: getChangeType(d.ready_to_email_last_week_comparison_percent)
+    },
+    emailsSent: {
+      value: d.emails_sent || 0,
+      change: d.email_sent_last_week_comparison_percent,
+      changeType: getChangeType(d.email_sent_last_week_comparison_percent)
+    },
+    successRate: {
+      value: d.success_rate || 0,
+      change: d.success_rate_last_week_comparison_percent,
+      changeType: getChangeType(d.success_rate_last_week_comparison_percent)
+    }
+  };
+};
+
 const MainDashboard = () => {
   const { user } = useAuth();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [activities, setActivities] = useState([]);
   const [kpiData, setKpiData] = useState({
-    totalScraped: { value: 0, change: 0, changeType: 'neutral' },
-    readyToEmail: { value: 0, change: 0, changeType: 'neutral' },
-    emailsSent: { value: 0, change: 0, changeType: 'neutral' },
-    successRate: { value: 0, change: 0, changeType: 'neutral' }
+    totalScraped: { value: 0, change: null, changeType: 'neutral' },
+    readyToEmail: { value: 0, change: null, changeType: 'neutral' },
+    emailsSent: { value: 0, change: null, changeType: 'neutral' },
+    successRate: { value: 0, change: null, changeType: 'neutral' }
   });
 
   const [dashboardData, setDashboardData] = useState({});
+  const [rawData, setRawData] = useState({ kpis: [], kpisAll: [], logs: [] });
   const [lastUpdate, setLastUpdate] = useState(new Date());
+  const [selectedCampaign, setSelectedCampaign] = useState('ALL');
+  const [campaignList, setCampaignList] = useState([]);
 
   // Fetch dashboard data from backend
   const fetchDashboard = useCallback(async () => {
@@ -33,25 +97,16 @@ const MainDashboard = () => {
 
       setDashboardData(data || {});
 
-      // Aggregate KPIs across all campaigns
       const kpis = data?.dashboard_kpis || [];
-      const totalLeads = kpis.reduce((sum, c) => sum + (c.total_leads || 0), 0);
-      const readyToEmail = kpis.reduce((sum, c) => sum + (c.ready_to_email || 0), 0);
-      const emailsSent = kpis.reduce((sum, c) => sum + (c.emails_sent || 0), 0);
-      const successRate = kpis.length > 0
-        ? kpis.reduce((sum, c) => sum + (c.success_rate || 0), 0) / kpis.length
-        : 0;
-
-      setKpiData({
-        totalScraped: { value: totalLeads, change: 0, changeType: 'neutral' },
-        readyToEmail: { value: readyToEmail, change: 0, changeType: 'neutral' },
-        emailsSent: { value: emailsSent, change: 0, changeType: 'neutral' },
-        successRate: { value: parseFloat(successRate.toFixed(2)), change: 0, changeType: 'neutral' }
-      });
-
-      // Map activity logs from backend (sorted latest first)
+      const kpisAll = data?.dashboard_kpis_all || [];
       const logs = data?.activity_logs || [];
-      const mappedActivities = logs
+
+      // Extract campaign list
+      const campaigns = kpis.map(c => ({ id: c.campaign_id, name: c.campaign_name }));
+      setCampaignList(campaigns);
+
+      // Map and sort activity logs (latest first)
+      const mappedLogs = logs
         .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
         .map((log, index) => ({
           id: `${log.campaign_id}-${log.created_at}-${index}`,
@@ -63,11 +118,12 @@ const MainDashboard = () => {
             : 'var(--color-warning)',
           title: log.action,
           description: log.campaign_name || '',
+          campaign_name: log.campaign_name || '',
           timestamp: log.created_at,
           status: 'success'
         }));
 
-      setActivities(mappedActivities);
+      setRawData({ kpis, kpisAll, logs: mappedLogs });
       setLastUpdate(new Date());
     } catch (err) {
       console.error('Error fetching dashboard', err);
@@ -79,8 +135,27 @@ const MainDashboard = () => {
     fetchDashboard();
   }, [fetchDashboard]);
 
-  const handleConfigSubmit = (formData, result) => {
-    // Re-fetch dashboard data from backend after any action
+  // Derive KPIs and activities whenever raw data or selected campaign changes
+  useEffect(() => {
+    const { kpis, kpisAll, logs } = rawData;
+
+    if (selectedCampaign === 'ALL') {
+      const allKpi = buildKpiFromAll(kpisAll);
+      if (allKpi) setKpiData(allKpi);
+      setActivities(logs);
+    } else {
+      const campaignKpi = buildKpiFromCampaign(kpis, selectedCampaign);
+      if (campaignKpi) setKpiData(campaignKpi);
+      setActivities(logs.filter(a => a.campaign_name === selectedCampaign));
+    }
+  }, [rawData, selectedCampaign]);
+
+  const handleCampaignChange = (campaign) => {
+    setSelectedCampaign(campaign);
+    setLastUpdate(new Date());
+  };
+
+  const handleConfigSubmit = () => {
     fetchDashboard();
   };
 
@@ -117,16 +192,37 @@ const MainDashboard = () => {
                   </p>
                 </div>
 
-                <div className="flex items-center gap-3 p-3 bg-card border border-border rounded-lg">
-                  <Icon name="Clock" size={16} color="var(--color-muted-foreground)" />
-                  <div>
-                    <p className="caption text-muted-foreground text-xs">Last Updated</p>
-                    <p className="text-sm font-medium text-foreground">
-                      {lastUpdate?.toLocaleTimeString('en-US', { 
-                        hour: '2-digit', 
-                        minute: '2-digit' 
-                      })}
-                    </p>
+                <div className="flex items-center gap-3">
+                  {/* Campaign Filter */}
+                  <div className="flex items-center gap-3 p-3 bg-card border border-border rounded-lg">
+                    <Icon name="Filter" size={16} color="var(--color-muted-foreground)" />
+                    <div>
+                      <p className="caption text-muted-foreground text-xs">Campaign</p>
+                      <select
+                        value={selectedCampaign}
+                        onChange={e => handleCampaignChange(e.target.value)}
+                        className="text-sm font-medium text-foreground bg-transparent border-none outline-none cursor-pointer"
+                      >
+                        <option value="ALL">All Campaigns</option>
+                        {campaignList.map(c => (
+                          <option key={c.id} value={c.name}>{c.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Last Updated */}
+                  <div className="flex items-center gap-3 p-3 bg-card border border-border rounded-lg">
+                    <Icon name="Clock" size={16} color="var(--color-muted-foreground)" />
+                    <div>
+                      <p className="caption text-muted-foreground text-xs">Last Updated</p>
+                      <p className="text-sm font-medium text-foreground">
+                        {lastUpdate?.toLocaleTimeString('en-US', {
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -175,7 +271,7 @@ const MainDashboard = () => {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8">
-                <div className="lg:col-span-8 h-[700px]">
+              <div className="lg:col-span-8 h-[700px]">
                 <ConfigurationForm onSubmit={handleConfigSubmit} dashboardData={dashboardData} />
               </div>
 

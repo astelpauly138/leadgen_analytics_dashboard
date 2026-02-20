@@ -10,7 +10,6 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
   const { user } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
-    campaignType: '',
     industry: '',
     area: '',
     city: '',
@@ -61,10 +60,6 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
       newErrors.name = 'Please enter a campaign name';
     }
 
-    if (!formData?.campaignType?.trim()) {
-      newErrors.campaignType = 'Please enter a campaign type';
-    }
-
     if (!formData?.industry) {
       newErrors.industry = 'Please select an industry';
     }
@@ -105,7 +100,6 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
       // 2. Create campaign in database
       const campaignPayload = {
         name: formData.name,
-        campaign_type: formData.campaignType,
         industry: industryLabel,
         area: formData.area || '',
         city: formData.city || '',
@@ -502,16 +496,6 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
               required
             />
 
-            <Input
-              label="Campaign Type"
-              type="text"
-              placeholder="e.g., cold outreach, warm lead, partnership"
-              value={formData?.campaignType}
-              onChange={(e) => handleInputChange('campaignType', e?.target?.value)}
-              error={errors?.campaignType}
-              required
-            />
-
             <Select
               label="Target Industry"
               options={industryOptions}
@@ -594,7 +578,6 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
               onClick={() => {
                 setFormData({
                   name: '',
-                  campaignType: '',
                   industry: '',
                   area: '',
                   city: '',

@@ -1,7 +1,7 @@
 import Icon from '../../../components/AppIcon';
 
-const ConversionFunnel = ({ stages }) => {
-  const maxValue = Math.max(...stages?.map(s => s?.count));
+const ConversionFunnel = ({ stages, overallRate, totalLeads, converted }) => {
+  const maxValue = stages?.length > 0 ? Math.max(...stages.map(s => s?.count || 0)) : 1;
 
   return (
     <div className="bg-card border border-border rounded-xl p-4 md:p-6">
@@ -21,11 +21,10 @@ const ConversionFunnel = ({ stages }) => {
           </div>
         </div>
       </div>
+
       <div className="space-y-4">
-        {stages?.map((stage, index) => {
-          const widthPercentage = (stage?.count / maxValue) * 100;
-          const isLast = index === stages?.length - 1;
-          const dropOffRate = !isLast ? stages?.[index]?.dropOffRate : 0;
+        {stages?.map((stage) => {
+          const widthPercentage = maxValue > 0 ? (stage?.count / maxValue) * 100 : 0;
 
           return (
             <div key={stage?.id} className="space-y-2">
@@ -33,11 +32,11 @@ const ConversionFunnel = ({ stages }) => {
                 <div className="flex items-center gap-3">
                   <div className={`flex items-center justify-center w-8 h-8 rounded-lg ${
                     stage?.status === 'success' ? 'bg-success/20' :
-                    stage?.status === 'warning'? 'bg-warning/20' : 'bg-primary/20'
+                    stage?.status === 'warning' ? 'bg-warning/20' : 'bg-primary/20'
                   }`}>
-                    <Icon 
-                      name={stage?.icon} 
-                      size={16} 
+                    <Icon
+                      name={stage?.icon}
+                      size={16}
                       color={
                         stage?.status === 'success' ? 'var(--color-success)' :
                         stage?.status === 'warning' ? 'var(--color-warning)' :
@@ -55,9 +54,10 @@ const ConversionFunnel = ({ stages }) => {
                   <p className="caption text-success text-xs font-medium">{stage?.conversionRate}%</p>
                 </div>
               </div>
+
               <div className="relative">
                 <div className="w-full bg-border rounded-full h-8 overflow-hidden">
-                  <div 
+                  <div
                     className="h-full bg-gradient-to-r from-primary to-primary/70 rounded-full flex items-center justify-end pr-3 transition-all duration-500"
                     style={{ width: `${widthPercentage}%` }}
                   >
@@ -67,13 +67,15 @@ const ConversionFunnel = ({ stages }) => {
                   </div>
                 </div>
               </div>
-              {!isLast && (
+
+              {/* Only show drop-off indicator when the stage explicitly requests it */}
+              {stage?.hasDropOffBelow && (
                 <div className="flex items-center justify-center gap-2 py-2">
                   <Icon name="ArrowDown" size={16} color="var(--color-muted-foreground)" />
                   <div className="flex items-center gap-2 px-3 py-1 bg-error/10 rounded-full">
                     <Icon name="TrendingDown" size={12} color="var(--color-error)" />
                     <span className="caption text-error text-xs font-medium">
-                      {dropOffRate}% drop-off
+                      {stage?.dropOffRate}% drop-off
                     </span>
                   </div>
                 </div>
@@ -82,23 +84,21 @@ const ConversionFunnel = ({ stages }) => {
           );
         })}
       </div>
+
+      {/* Summary footer — 3 columns, no Avg. Time */}
       <div className="mt-6 pt-6 border-t border-border">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           <div className="text-center p-3 bg-muted/50 rounded-lg">
             <p className="caption text-muted-foreground text-xs mb-1">Overall Conversion</p>
-            <p className="text-xl font-bold text-success">{stages?.[stages?.length - 1]?.conversionRate}%</p>
+            <p className="text-xl font-bold text-success">{overallRate ?? 0}%</p>
           </div>
           <div className="text-center p-3 bg-muted/50 rounded-lg">
             <p className="caption text-muted-foreground text-xs mb-1">Total Leads</p>
-            <p className="text-xl font-bold text-foreground">{stages?.[0]?.count?.toLocaleString()}</p>
+            <p className="text-xl font-bold text-foreground">{(totalLeads ?? 0).toLocaleString()}</p>
           </div>
           <div className="text-center p-3 bg-muted/50 rounded-lg">
             <p className="caption text-muted-foreground text-xs mb-1">Converted</p>
-            <p className="text-xl font-bold text-primary">{stages?.[stages?.length - 1]?.count?.toLocaleString()}</p>
-          </div>
-          <div className="text-center p-3 bg-muted/50 rounded-lg">
-            <p className="caption text-muted-foreground text-xs mb-1">Avg. Time</p>
-            <p className="text-xl font-bold text-foreground">4.2d</p>
+            <p className="text-xl font-bold text-primary">{(converted ?? 0).toLocaleString()}</p>
           </div>
         </div>
       </div>

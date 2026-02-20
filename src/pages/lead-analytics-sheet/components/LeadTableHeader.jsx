@@ -2,21 +2,19 @@ import Icon from '../../../components/AppIcon';
 
 const LeadTableHeader = ({ sortConfig, onSort, onSelectAll, selectedCount, totalCount }) => {
   const columns = [
-    { key: 'name', label: 'Contact Name', sortable: true, width: 'min-w-[140px]' },
-    { key: 'company', label: 'Company', sortable: true, width: 'min-w-[120px]' },
-    { key: 'email', label: 'Email', sortable: true, width: 'min-w-[160px]' },
-    { key: 'phone', label: 'Phone', sortable: false, width: 'min-w-[120px]' },
-    { key: 'status', label: 'Status', sortable: true, width: 'min-w-[100px]' },
-    { key: 'quality', label: 'Quality Score', sortable: true, width: 'min-w-[120px]' },
-    { key: 'source', label: 'Source', sortable: true, width: 'min-w-[90px]' },
-    { key: 'lastContact', label: 'Last Contact', sortable: true, width: 'min-w-[110px]' },
-    { key: 'actions', label: 'Actions', sortable: false, width: 'min-w-[80px]' }
+    { key: 'name', label: 'Contact Name', sortable: true, width: 'min-w-[180px]' },
+    { key: 'company', label: 'Company', sortable: true, width: 'min-w-[160px]' },
+    { key: 'email', label: 'Email', sortable: true, width: 'min-w-[180px]' },
+    { key: 'phone', label: 'Phone', sortable: false, width: 'min-w-[130px]' },
+    { key: 'event_type', label: 'Status', sortable: true, width: 'min-w-[110px]' },
+    { key: 'last_contacted', label: 'Last Contacted', sortable: true, width: 'min-w-[130px]' },
+    { key: 'actions', label: 'Actions', sortable: false, width: 'min-w-[90px]' }
   ];
 
   const handleSort = (key) => {
-    if (!columns?.find(col => col?.key === key)?.sortable) return;
-    
-    const direction = sortConfig?.key === key && sortConfig?.direction === 'asc' ? 'desc' : 'asc';
+    if (!columns.find((col) => col.key === key)?.sortable) return;
+    const direction =
+      sortConfig?.key === key && sortConfig?.direction === 'asc' ? 'desc' : 'asc';
     onSort({ key, direction });
   };
 
@@ -37,26 +35,25 @@ const LeadTableHeader = ({ sortConfig, onSort, onSelectAll, selectedCount, total
             aria-label="Select all leads"
           />
         </th>
-        
-        {columns?.map(column => (
-          <th
-            key={column?.key}
-            className={`px-4 py-3 text-left ${column?.width}`}
-          >
-            {column?.sortable ? (
+
+        {columns.map((column) => (
+          <th key={column.key} className={`px-4 py-3 text-left ${column.width}`}>
+            {column.sortable ? (
               <button
-                onClick={() => handleSort(column?.key)}
+                onClick={() => handleSort(column.key)}
                 className="flex items-center gap-2 text-sm font-medium text-foreground hover:text-primary transition-colors touch-target"
               >
-                {column?.label}
+                {column.label}
                 <Icon
-                  name={getSortIcon(column?.key)}
+                  name={getSortIcon(column.key)}
                   size={16}
-                  color={sortConfig?.key === column?.key ? 'var(--color-primary)' : 'currentColor'}
+                  color={
+                    sortConfig?.key === column.key ? 'var(--color-primary)' : 'currentColor'
+                  }
                 />
               </button>
             ) : (
-              <span className="text-sm font-medium text-foreground">{column?.label}</span>
+              <span className="text-sm font-medium text-foreground">{column.label}</span>
             )}
           </th>
         ))}

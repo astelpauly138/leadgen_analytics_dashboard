@@ -33,20 +33,20 @@ const CampaignLeaderboard = ({ campaigns }) => {
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-lg font-bold text-success">{campaign?.successRate}%</p>
+                <p className="text-lg font-bold text-success">{campaign?.convertedRate}%</p>
                 <p className="caption text-muted-foreground text-xs whitespace-nowrap">{campaign?.emailsSent} sent</p>
               </div>
             </div>
 
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs">
-                <span className="caption text-muted-foreground">Success Rate</span>
-                <span className="font-medium text-foreground">{campaign?.successRate}%</span>
+                <span className="caption text-muted-foreground">Converted Rate</span>
+                <span className="font-medium text-foreground">{campaign?.convertedRate}%</span>
               </div>
               <div className="w-full bg-border rounded-full h-2 overflow-hidden">
-                <div 
+                <div
                   className="h-full bg-gradient-to-r from-success to-primary rounded-full transition-all duration-500"
-                  style={{ width: `${campaign?.successRate}%` }}
+                  style={{ width: `${campaign?.convertedRate}%` }}
                 />
               </div>
             </div>
@@ -61,8 +61,8 @@ const CampaignLeaderboard = ({ campaigns }) => {
                 <p className="text-sm font-semibold text-foreground">{campaign?.clickRate}%</p>
               </div>
               <div className="text-center">
-                <p className="caption text-muted-foreground text-xs mb-1">Replies</p>
-                <p className="text-sm font-semibold text-foreground">{campaign?.replyRate}%</p>
+                <p className="caption text-muted-foreground text-xs mb-1">Converted</p>
+                <p className="text-sm font-semibold text-foreground">{campaign?.converted}</p>
               </div>
             </div>
           </div>

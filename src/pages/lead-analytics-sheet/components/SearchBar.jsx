@@ -1,129 +1,152 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Icon from '../../../components/AppIcon';
-import Select from '../../../components/ui/Select';
-import Button from '../../../components/ui/Button';
 
-const SearchBar = ({ onSearch, onIndustryChange, onLocationChange, onDateRangeChange }) => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedIndustries, setSelectedIndustries] = useState([]);
-  const [selectedLocations, setSelectedLocations] = useState([]);
-  const [dateRange, setDateRange] = useState('all');
+const FilterSelect = ({ label, value, options, onChange }) => (
+  <div className="flex flex-col gap-1">
+    <label className="text-xs font-medium text-muted-foreground">{label}</label>
+    <select
+      value={value || ''}
+      onChange={(e) => onChange(e.target.value)}
+      className="h-10 px-3 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all cursor-pointer min-w-[130px]"
+    >
+      <option value="">All {label}s</option>
+      {options.map((opt) => (
+        <option key={opt} value={opt}>
+          {opt}
+        </option>
+      ))}
+    </select>
+  </div>
+);
 
-  const industryOptions = [
-    { value: 'technology', label: 'Technology' },
-    { value: 'healthcare', label: 'Healthcare' },
-    { value: 'finance', label: 'Finance' },
-    { value: 'retail', label: 'Retail' },
-    { value: 'manufacturing', label: 'Manufacturing' },
-    { value: 'education', label: 'Education' },
-    { value: 'real_estate', label: 'Real Estate' },
-    { value: 'consulting', label: 'Consulting' }
-  ];
+const SearchBar = ({
+  searchTerm = '',
+  onSearchChange,
+  nameSuggestions = [],
+  industryOptions = [],
+  locationOptions = [],
+  companyOptions = [],
+  positionOptions = [],
+  statusOptions = [],
+  activeFilters = {},
+  onFilterChange,
+  onClearFilters
+}) => {
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const containerRef = useRef(null);
 
-  const locationOptions = [
-    { value: 'us', label: 'United States' },
-    { value: 'uk', label: 'United Kingdom' },
-    { value: 'canada', label: 'Canada' },
-    { value: 'germany', label: 'Germany' },
-    { value: 'france', label: 'France' },
-    { value: 'australia', label: 'Australia' },
-    { value: 'india', label: 'India' },
-    { value: 'singapore', label: 'Singapore' }
-  ];
+  const hasActiveFiltersOrSearch =
+    searchTerm || Object.values(activeFilters).some((v) => v);
 
-  const dateRangeOptions = [
-    { value: 'all', label: 'All Time' },
-    { value: 'today', label: 'Today' },
-    { value: 'week', label: 'Last 7 Days' },
-    { value: 'month', label: 'Last 30 Days' },
-    { value: 'quarter', label: 'Last 90 Days' },
-    { value: 'year', label: 'Last Year' }
-  ];
-
-  const handleSearch = (e) => {
-    e?.preventDefault();
-    onSearch(searchTerm);
-  };
-
-  const handleIndustryChange = (values) => {
-    setSelectedIndustries(values);
-    onIndustryChange(values);
-  };
-
-  const handleLocationChange = (values) => {
-    setSelectedLocations(values);
-    onLocationChange(values);
-  };
-
-  const handleDateRangeChange = (value) => {
-    setDateRange(value);
-    onDateRangeChange(value);
-  };
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   return (
-    <div className="bg-card border border-border rounded-xl p-4 md:p-6 space-y-4">
-      <form onSubmit={handleSearch} className="flex gap-2">
-        <div className="relative flex-1">
-          <Icon
-            name="Search"
-            size={20}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-          />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e?.target?.value)}
-            placeholder="Search by name, company, email, or phone..."
-            className="w-full pl-10 pr-4 py-3 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-          />
-        </div>
-        <Button
-          type="submit"
-          variant="default"
-          iconName="Search"
-          iconPosition="left"
-          className="hidden md:flex"
-        >
-          Search
-        </Button>
-        <Button
-          type="submit"
-          variant="default"
-          size="icon"
-          iconName="Search"
-          className="md:hidden"
+    <div className="bg-card border border-border rounded-xl p-4 md:p-5 space-y-4">
+      {/* Search with autocomplete */}
+      <div className="relative" ref={containerRef}>
+        <Icon
+          name="Search"
+          size={18}
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
         />
-      </form>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Select
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(e) => {
+            onSearchChange(e.target.value);
+            setShowSuggestions(true);
+          }}
+          onFocus={() => {
+            if (searchTerm) setShowSuggestions(true);
+          }}
+          placeholder="Search leads by name…"
+          className="w-full pl-10 pr-10 py-2.5 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+        />
+        {searchTerm && (
+          <button
+            onClick={() => {
+              onSearchChange('');
+              setShowSuggestions(false);
+            }}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Clear search"
+          >
+            <Icon name="X" size={16} />
+          </button>
+        )}
+
+        {/* Autocomplete dropdown */}
+        {showSuggestions && nameSuggestions.length > 0 && (
+          <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-card border border-border rounded-lg shadow-lg overflow-hidden">
+            {nameSuggestions.map((name) => (
+              <button
+                key={name}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  onSearchChange(name);
+                  setShowSuggestions(false);
+                }}
+                className="w-full text-left px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors flex items-center gap-2"
+              >
+                <Icon name="User" size={14} className="text-muted-foreground flex-shrink-0" />
+                {name}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Filter row */}
+      <div className="flex flex-wrap gap-3 items-end">
+        <FilterSelect
           label="Industry"
-          placeholder="Select industries"
+          value={activeFilters.industry}
           options={industryOptions}
-          value={selectedIndustries}
-          onChange={handleIndustryChange}
-          multiple
-          searchable
-          clearable
+          onChange={(v) => onFilterChange('industry', v)}
         />
-
-        <Select
+        <FilterSelect
           label="Location"
-          placeholder="Select locations"
+          value={activeFilters.location}
           options={locationOptions}
-          value={selectedLocations}
-          onChange={handleLocationChange}
-          multiple
-          searchable
-          clearable
+          onChange={(v) => onFilterChange('location', v)}
         />
-
-        <Select
-          label="Date Range"
-          placeholder="Select date range"
-          options={dateRangeOptions}
-          value={dateRange}
-          onChange={handleDateRangeChange}
+        <FilterSelect
+          label="Company"
+          value={activeFilters.company}
+          options={companyOptions}
+          onChange={(v) => onFilterChange('company', v)}
         />
+        <FilterSelect
+          label="Position"
+          value={activeFilters.position}
+          options={positionOptions}
+          onChange={(v) => onFilterChange('position', v)}
+        />
+        <FilterSelect
+          label="Status"
+          value={activeFilters.status}
+          options={statusOptions}
+          onChange={(v) => onFilterChange('status', v)}
+        />
+        {hasActiveFiltersOrSearch && (
+          <div className="flex flex-col justify-end">
+            <button
+              onClick={onClearFilters}
+              className="h-10 px-4 text-sm text-muted-foreground hover:text-foreground border border-border rounded-lg hover:bg-muted transition-colors whitespace-nowrap"
+            >
+              Clear All
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
