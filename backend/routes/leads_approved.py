@@ -14,7 +14,6 @@ router = APIRouter()
 class LeadApproval(BaseModel):
     lead_id: str
     approved: bool
-    email: str
 
 
 # Request body model
@@ -37,18 +36,24 @@ def approve_leads(payload: LeadsApprovalRequest):
                     .update({"status": "approved"}) \
                     .eq("id", lead.lead_id) \
                     .eq("user_id", payload.user_id) \
-                    .eq("campaign_id", payload.campaign_id) \
                     .execute()
 
                 updated_leads.append({
                     "lead_id": lead.lead_id,
-                    "email": lead.email,
                     "status": "approved"
                 })
 
         # 2️⃣ Insert email events and send emails
         for lead in payload.leads:
             if lead.approved:
+                # Fetch email from leads table
+                lead_row = supabase.table("leads") \
+                    .select("email") \
+                    .eq("id", lead.lead_id) \
+                    .single() \
+                    .execute()
+                lead_email = lead_row.data.get("email") if lead_row.data else None
+
                 email_event = {
                     "id": str(uuid.uuid4()),
                     "user_id": payload.user_id,
@@ -59,13 +64,13 @@ def approve_leads(payload: LeadsApprovalRequest):
                 }
                 supabase.table("email_events").insert(email_event).execute()
 
-                # Send actual email with dynamic tracking URL
-                send_email(
-                    lead_id=lead.lead_id,
-                    user_id=payload.user_id,
-                    campaign_id=payload.campaign_id,
-                    receiver_email=lead.email
-                )
+                if lead_email:
+                    send_email(
+                        lead_id=lead.lead_id,
+                        user_id=payload.user_id,
+                        campaign_id=payload.campaign_id,
+                        receiver_email=lead_email
+                    )
 
         # 3️⃣ Insert activity log
         activity_log = insert_activity_log(

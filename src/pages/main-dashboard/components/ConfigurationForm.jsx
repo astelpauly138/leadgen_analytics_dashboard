@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
 import Select from '../../../components/ui/Select';
-import { apiPost } from '../../../utils/api';
+import { apiPost, apiGet } from '../../../utils/api';
 import { useAuth } from '../../../context/AuthContext';
 
 const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
@@ -28,6 +28,28 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
   const [currentCampaignId, setCurrentCampaignId] = useState(null);
   const [showForm, setShowForm] = useState(true);
   const [showList, setShowList] = useState(false);
+
+  // Email modal state
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [emailData, setEmailData] = useState({ subject: '', content: '', redirectUrl: '' });
+  const [emailErrors, setEmailErrors] = useState({});
+
+  // Load persisted leads on mount — populate counts on toggle buttons,
+  // but keep the form visible until the user clicks a toggle
+  useEffect(() => {
+    if (!user?.user_id) return;
+    apiGet(`/leads/${user.user_id}`)
+      .then(data => {
+        const pending = data?.pending_leads || [];
+        const approved = data?.approved_leads || [];
+        setPendingLeads(pending);
+        setSentLeads(approved);
+        // Use the most recent lead's campaign_id as the active campaign
+        const recentLead = pending[0] || approved[0];
+        if (recentLead?.campaign_id) setCurrentCampaignId(recentLead.campaign_id);
+      })
+      .catch(err => console.error('Failed to load leads:', err));
+  }, [user?.user_id]);
 
   const industryOptions = [
     { value: 'technology', label: 'Technology & Software' },
@@ -83,13 +105,24 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
 
   const handleSubmit = async (e) => {
     e?.preventDefault();
+    if (!validateForm()) return;
+    // Show email modal before proceeding
+    setShowEmailModal(true);
+  };
 
-    if (!validateForm()) {
-      return;
-    }
+  const validateEmailModal = () => {
+    const errs = {};
+    if (!emailData.subject.trim()) errs.subject = 'Please enter an email subject';
+    if (!emailData.content.trim()) errs.content = 'Please enter the email content';
+    if (!emailData.redirectUrl.trim()) errs.redirectUrl = 'Please enter a redirecting URL';
+    setEmailErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
 
+  const handleEmailModalConfirm = async () => {
+    if (!validateEmailModal()) return;
+    setShowEmailModal(false);
     setIsSubmitting(true);
-    setShowForm(false);
 
     try {
       // 1. Resolve labels for the backend
@@ -100,6 +133,7 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
       // 2. Create campaign in database
       const campaignPayload = {
         name: formData.name,
+        campaign_type: 'lead_generation',
         industry: industryLabel,
         area: formData.area || '',
         city: formData.city || '',
@@ -113,6 +147,8 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
       const campaignResult = await apiPost(`/campaigns/${user.user_id}`, campaignPayload);
       console.log('Campaign created:', campaignResult);
 
+      setShowForm(false);
+
       const campaignId = campaignResult?.campaign?.id;
       setCurrentCampaignId(campaignId);
 
@@ -121,11 +157,14 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
         onSubmit(formData, campaignResult);
       }
 
-      // 4. Start n8n scraping
+      // 4. Start n8n scraping (include email fields)
       const n8nPayload = {
         ...formData,
         campaign_id: campaignId,
-        user_id: user.user_id
+        user_id: user.user_id,
+        email_subject: emailData.subject,
+        email_content: emailData.content,
+        redirect_url: emailData.redirectUrl
       };
 
       const resp = await fetch('https://n8n.analytica-data.com/webhook-test/form-submit', {
@@ -141,23 +180,22 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
         console.error('Webhook responded with error', resp.status, result);
       } else {
         // 5. Map n8n employees to Lead format for /lead-scraping
-        const batches = Array.isArray(result) ? result : [result];
-        const employees = batches.flatMap(b => b.employees || []);
+        const employees = Array.isArray(result) ? result : (result?.employees || []);
 
         if (employees.length > 0) {
           const leads = employees.map(emp => ({
-            Employee_Name: emp.Employee_Name || emp.employee_name || '',
-            Work_Email: emp.Work_Email || emp.work_email || null,
+            Employee_Name: emp['Employee Name'] || emp.Employee_Name || emp.employee_name || '',
+            Work_Email: emp['Work Email'] || emp.Work_Email || emp.work_email || null,
             Company: emp.Company || emp.company_name || emp.company || '',
-            Work_Mobile_No: emp.Work_Mobile_No || emp.work_mobile_no || emp.phone || null,
+            Work_Mobile_No: emp['Work Mobile No.'] || emp.Work_Mobile_No || emp.work_mobile_no || emp.phone || null,
             Category: emp.Category || emp.category || null,
             Position: emp.Position || emp.position || null,
-            Email_Status: emp.Email_Status || emp.email_status || null,
+            Email_Status: emp['Email Status'] || emp.Email_Status || emp.email_status || null,
             Website: emp.Website || emp.website || null,
             Domain: emp.Domain || emp.domain || null,
             Location: emp.Location || emp.location || null,
             Address: emp.Address || emp.address || null,
-            Promotion_Status: emp.Promotion_Status || emp.promotion_status || null
+            Promotion_Status: emp['Promotion Status'] || emp.Promotion_Status || emp.promotion_status || null
           }));
 
           // 6. Insert leads via /lead-scraping endpoint
@@ -183,6 +221,7 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
       }
     } catch (err) {
       console.error('Failed during campaign creation or scraping', err);
+      setShowForm(true);
     } finally {
       setIsSubmitting(false);
     }
@@ -211,9 +250,12 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
         .map(idx => pendingLeads[idx])
         .filter(Boolean);
 
+      // Use currentCampaignId from state, or fall back to the lead's own campaign_id (after refresh)
+      const campaignId = currentCampaignId || selectedLeadObjects[0]?.campaign_id;
+
       const approvalPayload = {
         user_id: user.user_id,
-        campaign_id: currentCampaignId,
+        campaign_id: campaignId,
         type: 'sent',
         leads: selectedLeadObjects.map(lead => ({
           lead_id: lead.id,
@@ -605,6 +647,102 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
           </div>
         </div>
         </>
+      )}
+
+      {/* Email Details Modal */}
+      {showEmailModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-card border border-border rounded-xl shadow-xl w-full max-w-md mx-4 p-6">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="flex items-center justify-center w-10 h-10 bg-primary/20 rounded-lg shrink-0">
+                <Icon name="Mail" size={20} color="var(--color-primary)" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-foreground">Email Details</h3>
+                <p className="text-xs text-muted-foreground">Fill in the details before starting scraping</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {/* Subject */}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Email Subject <span className="text-error">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g., Exclusive Offer for You"
+                  value={emailData.subject}
+                  onChange={(e) => {
+                    setEmailData(prev => ({ ...prev, subject: e.target.value }));
+                    if (emailErrors.subject) setEmailErrors(prev => ({ ...prev, subject: '' }));
+                  }}
+                  className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                />
+                {emailErrors.subject && (
+                  <p className="mt-1 text-xs text-error">{emailErrors.subject}</p>
+                )}
+              </div>
+
+              {/* Content */}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Email Content <span className="text-error">*</span>
+                </label>
+                <textarea
+                  placeholder="Write your email body here..."
+                  value={emailData.content}
+                  rows={4}
+                  onChange={(e) => {
+                    setEmailData(prev => ({ ...prev, content: e.target.value }));
+                    if (emailErrors.content) setEmailErrors(prev => ({ ...prev, content: '' }));
+                  }}
+                  className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary resize-none"
+                />
+                {emailErrors.content && (
+                  <p className="mt-1 text-xs text-error">{emailErrors.content}</p>
+                )}
+              </div>
+
+              {/* Redirect URL */}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Redirecting URL <span className="text-error">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="https://yoursite.com/landing"
+                  value={emailData.redirectUrl}
+                  onChange={(e) => {
+                    setEmailData(prev => ({ ...prev, redirectUrl: e.target.value }));
+                    if (emailErrors.redirectUrl) setEmailErrors(prev => ({ ...prev, redirectUrl: '' }));
+                  }}
+                  className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                />
+                {emailErrors.redirectUrl && (
+                  <p className="mt-1 text-xs text-error">{emailErrors.redirectUrl}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                type="button"
+                onClick={() => { setShowEmailModal(false); setEmailErrors({}); }}
+                className="flex-1 px-4 py-2 text-sm font-medium text-foreground bg-muted border border-border rounded-lg hover:bg-muted/80 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleEmailModalConfirm}
+                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors"
+              >
+                Proceed
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -48,7 +48,12 @@ export const apiRequest = async (endpoint, options = {}) => {
     // Handle other errors
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.detail || `Request failed with status ${response.status}`);
+      // FastAPI 422 returns detail as an array - log the full detail for debugging
+      console.error(`API ${response.status} on ${endpoint}:`, JSON.stringify(errorData.detail ?? errorData));
+      const detail = Array.isArray(errorData.detail)
+        ? errorData.detail.map(e => `${e.loc?.join('.')} - ${e.msg}`).join(', ')
+        : errorData.detail;
+      throw new Error(detail || `Request failed with status ${response.status}`);
     }
 
     // Return response data

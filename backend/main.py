@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from routes.auth import router as auth_router
 from routes.dashboard import router as dashboard_router
@@ -9,6 +9,17 @@ from routes.lead_scraping import router as lead_scraping_router
 from routes.leads_approved import router as leads_approved_router
 
 app = FastAPI()
+
+@app.middleware("http")
+async def log_post_bodies(request: Request, call_next):
+    if request.method == "POST":
+        body = await request.body()
+        print(f"\n>>> POST {request.url.path}")
+        print(f">>> BODY: {body.decode('utf-8')}")
+    response = await call_next(request)
+    if response.status_code == 422:
+        print(f">>> 422 on {request.url.path} - check body above")
+    return response
 
 # Add CORS middleware
 app.add_middleware(
