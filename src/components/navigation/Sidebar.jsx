@@ -1,12 +1,11 @@
-import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Icon from '../AppIcon';
 import analyticaLogo from '../../styles/images/Analytica-text.png';
+import logoIcon from '../../styles/images/logo.png';
 
-const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
+const Sidebar = ({ isCollapsed = false }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const navigationItems = [
     {
@@ -37,7 +36,6 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
 
   const handleNavigation = (path) => {
     navigate(path);
-    setIsMobileOpen(false);
   };
 
   const isActive = (path) => {
@@ -45,62 +43,45 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
   };
 
   return (
-    <>
-      <button
-        className="mobile-menu-button"
-        onClick={() => setIsMobileOpen(!isMobileOpen)}
-        aria-label="Toggle mobile menu"
-      >
-        <Icon name={isMobileOpen ? 'X' : 'Menu'} size={20} />
-      </button>
-      {isMobileOpen && (
-        <div
-          className="mobile-overlay"
-          onClick={() => setIsMobileOpen(false)}
-          aria-hidden="true"
-        />
-      )}
-      <aside
-        className={`sidebar ${isCollapsed ? 'collapsed' : ''} ${
-          isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-        }`}
-      >
-        <div className="sidebar-header" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-          <img src={analyticaLogo} alt="Analytica" className="sidebar-brand-img" style={{ height: '22px', objectFit: 'contain' }} />
-        </div>
+    <aside
+      className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}
+    >
+      <div className="sidebar-header" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <img src={analyticaLogo} alt="Analytica" className="sidebar-brand-text-logo" style={{ height: '22px', objectFit: 'contain' }} />
+        <img src={logoIcon} alt="Analytica" className="sidebar-brand-icon-logo" style={{ height: '32px', width: '32px', objectFit: 'contain' }} />
+      </div>
 
-        <nav className="sidebar-nav" aria-label="Main navigation">
-          {navigationItems?.map((item, index) => (
-            <button
-              key={item?.path}
-              onClick={() => handleNavigation(item?.path)}
-              className={`sidebar-nav-item animate-stagger ${
-                isActive(item?.path) ? 'active' : ''
-              }`}
-              title={isCollapsed ? item?.tooltip : ''}
-              aria-label={item?.label}
-              aria-current={isActive(item?.path) ? 'page' : undefined}
-            >
-              <Icon name={item?.icon} size={20} />
-              <span className="sidebar-nav-item-text">{item?.label}</span>
-            </button>
-          ))}
-        </nav>
+      <nav className="sidebar-nav" aria-label="Main navigation">
+        {navigationItems?.map((item) => (
+          <button
+            key={item?.path}
+            onClick={() => handleNavigation(item?.path)}
+            className={`sidebar-nav-item animate-stagger ${
+              isActive(item?.path) ? 'active' : ''
+            }`}
+            title={item?.label}
+            aria-label={item?.label}
+            aria-current={isActive(item?.path) ? 'page' : undefined}
+          >
+            <Icon name={item?.icon} size={20} />
+            <span className="sidebar-nav-item-text">{item?.label}</span>
+          </button>
+        ))}
+      </nav>
 
-        {!isCollapsed && (
-          <div className="absolute bottom-6 left-4 right-4">
-            <div className="p-4 bg-muted rounded-lg">
-              <p className="caption text-muted-foreground text-xs">
-                © 2026 ANALYTICA
-              </p>
-              <p className="caption text-muted-foreground text-xs mt-1">
-                Lead Intelligence Platform
-              </p>
-            </div>
+      {!isCollapsed && (
+        <div className="sidebar-footer absolute bottom-6 left-4 right-4">
+          <div className="p-4 bg-muted rounded-lg">
+            <p className="caption text-muted-foreground text-xs">
+              © 2026 ANALYTICA
+            </p>
+            <p className="caption text-muted-foreground text-xs mt-1">
+              Lead Intelligence Platform
+            </p>
           </div>
-        )}
-      </aside>
-    </>
+        </div>
+      )}
+    </aside>
   );
 };
 

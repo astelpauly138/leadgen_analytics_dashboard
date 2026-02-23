@@ -5,6 +5,7 @@ import ErrorBoundary from "components/ErrorBoundary";
 import NotFound from "pages/NotFound";
 import ProtectedRoute from "components/ProtectedRoute";
 import { AuthProvider } from "context/AuthContext";
+import { ThemeProvider } from "context/ThemeContext";
 import AuthenticationLogin from './pages/authentication-login';
 import AuthenticationSignup from './pages/authentication-signup';
 import MainDashboard from './pages/main-dashboard';
@@ -16,6 +17,7 @@ const Routes = () => {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <ThemeProvider>
         <ErrorBoundary>
           <ScrollToTop />
           <RouterRoutes>
@@ -69,6 +71,7 @@ const Routes = () => {
             <Route path="*" element={<NotFound />} />
           </RouterRoutes>
         </ErrorBoundary>
+        </ThemeProvider>
       </AuthProvider>
     </BrowserRouter>
   );

@@ -197,6 +197,15 @@
     @apply w-8 h-8;
   }
 
+  /* Large screens: always show text logo, hide icon logo */
+  .sidebar-brand-text-logo {
+    display: block;
+  }
+
+  .sidebar-brand-icon-logo {
+    display: none;
+  }
+
   .sidebar-brand-text {
     @apply ml-3 text-lg font-semibold text-foreground transition-opacity duration-250;
   }
@@ -275,9 +284,124 @@
   }
 
   @media (max-width: 1024px) {
+    /* Sidebar: always visible as icon-only (64px), expands to full width on hover */
+    .sidebar,
+    .sidebar.collapsed {
+      width: 64px;
+      transform: translateX(0);
+    }
+
+    .sidebar:hover,
+    .sidebar.collapsed:hover {
+      width: 240px;
+      z-index: 250; /* Rise above the sticky header (z-200) so the logo is not hidden */
+      box-shadow: 4px 0 20px rgba(0, 0, 0, 0.08);
+    }
+
+    /* Remove horizontal padding from nav container so icons can center freely */
+    .sidebar:not(:hover) .sidebar-nav {
+      padding-left: 0;
+      padding-right: 0;
+    }
+
+    /* Center icons in icon-only mode — zero gap/padding so hidden span doesn't offset icon */
+    .sidebar .sidebar-nav-item,
+    .sidebar.collapsed .sidebar-nav-item {
+      justify-content: center;
+      padding-left: 0;
+      padding-right: 0;
+      gap: 0;
+      border-left-width: 0;
+    }
+
+    /* Make icons larger and easier to see */
+    .sidebar:not(:hover) .sidebar-nav-item svg {
+      width: 24px;
+      height: 24px;
+    }
+
+    /* Active state: use background highlight instead of left border in icon-only mode */
+    .sidebar:not(:hover) .sidebar-nav-item.active {
+      background-color: var(--color-muted);
+      border-radius: 0.5rem;
+    }
+
+    /* Restore full layout when sidebar expands on hover */
+    .sidebar:hover .sidebar-nav {
+      padding-left: 1rem;
+      padding-right: 1rem;
+    }
+
+    .sidebar:hover .sidebar-nav-item {
+      justify-content: flex-start;
+      padding-left: 1rem;
+      padding-right: 1rem;
+      gap: 0.75rem;
+    }
+
+    .sidebar:hover .sidebar-nav-item.active {
+      border-left-width: 4px;
+    }
+
+    .sidebar:hover .sidebar-nav-item:not(.active) {
+      border-left-width: 0;
+    }
+
+    /* Hide labels in icon-only mode */
+    .sidebar .sidebar-nav-item-text,
+    .sidebar.collapsed .sidebar-nav-item-text {
+      opacity: 0;
+      width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+    }
+
+    /* Show labels on hover */
+    .sidebar:hover .sidebar-nav-item-text {
+      opacity: 1;
+      width: auto;
+    }
+
+    /* Icon-only mode: hide text logo, show icon logo */
+    .sidebar .sidebar-brand-text-logo {
+      opacity: 0;
+      width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+    }
+
+    .sidebar .sidebar-brand-icon-logo {
+      opacity: 1;
+      display: block;
+    }
+
+    /* Expanded on hover: fade in text logo, hide icon logo */
+    .sidebar:hover .sidebar-brand-text-logo {
+      opacity: 1;
+      width: auto;
+    }
+
+    .sidebar:hover .sidebar-brand-icon-logo {
+      opacity: 0;
+      width: 0;
+      overflow: hidden;
+    }
+
+    /* Hide footer in icon-only mode, show on hover */
+    .sidebar-footer {
+      opacity: 0;
+      visibility: hidden;
+    }
+
+    .sidebar:hover .sidebar-footer {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    /* Main content: leave room for the 64px icon sidebar */
     .main-content,
     .main-content.sidebar-collapsed {
-      margin-left: 0;
+      margin-left: 64px;
     }
   }
 
