@@ -64,14 +64,6 @@ def approve_leads(payload: LeadsApprovalRequest):
                 }
                 supabase.table("email_events").insert(email_event).execute()
 
-                if lead_email:
-                    send_email(
-                        lead_id=lead.lead_id,
-                        user_id=payload.user_id,
-                        campaign_id=payload.campaign_id,
-                        receiver_email=lead_email
-                    )
-
         # 3️⃣ Insert activity log
         activity_log = insert_activity_log(
             user_id=payload.user_id,

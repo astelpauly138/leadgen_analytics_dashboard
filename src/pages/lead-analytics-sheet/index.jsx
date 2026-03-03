@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Helmet } from 'react-helmet';
 import { useAuth } from '../../context/AuthContext';
 import { apiGet } from '../../utils/api';
@@ -36,23 +36,29 @@ const LeadAnalyticsSheet = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  useEffect(() => {
+  const fetchLeads = useCallback(async () => {
     if (!user?.user_id) return;
-    const fetchLeads = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const data = await apiGet(`/lead-analytics/${user.user_id}`);
-        setLeads(data.lead_list || []);
-      } catch (err) {
-        console.error('Failed to fetch leads:', err);
-        setError('Failed to load leads. Please try again.');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchLeads();
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await apiGet(`/lead-analytics/${user.user_id}`);
+      setLeads(
+        (data.lead_list || []).map((lead, idx) => ({
+          ...lead,
+          id: lead.id ?? lead.lead_id ?? `row-${idx}`
+        }))
+      );
+    } catch (err) {
+      console.error('Failed to fetch leads:', err);
+      setError('Failed to load leads. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   }, [user?.user_id]);
+
+  useEffect(() => {
+    fetchLeads();
+  }, [fetchLeads]);
 
   // Stats computed from real data
   const totalLeads = leads.length;
@@ -180,9 +186,62 @@ const LeadAnalyticsSheet = () => {
     setSearchTerm('');
   };
 
-  const handleBulkEmail = () => console.log('Sending email to', selectedLeads.length, 'leads');
-  const handleBulkExport = () => console.log('Exporting', selectedLeads.length, 'leads');
-  const handleBulkDelete = () => console.log('Deleting', selectedLeads.length, 'leads');
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleBulkExport = async () => {
+    if (selectedLeads.length === 0) return;
+    setIsExporting(true);
+    try {
+      const token = localStorage.getItem('access_token');
+      const selectedLeadObjects = sortedLeads.filter(l => selectedLeads.includes(l.id));
+
+      const leadIds = selectedLeadObjects.map(l => l.lead_id).filter(Boolean);
+      if (leadIds.length === 0) throw new Error('No valid lead IDs found for selected leads');
+      const params = leadIds.map((id) => `lead_ids=${encodeURIComponent(id)}`).join('&');
+
+      const response = await fetch(
+        `http://127.0.0.1:8000/export_specific_leads/${user.user_id}?${params}`,
+        { method: 'GET', headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!response.ok) throw new Error('Export failed');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'leads_data.xlsx';
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Export failed:', err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleBulkDelete = async () => {
+    if (selectedLeads.length === 0) return;
+    setIsDeleting(true);
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch('http://127.0.0.1:8000/delete-leads', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ lead_ids: selectedLeads })
+      });
+      if (!response.ok) throw new Error('Delete failed');
+      setSelectedLeads([]);
+      await fetchLeads();
+    } catch (err) {
+      console.error('Delete failed:', err);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const hasActiveFiltersOrSearch =
     searchTerm || Object.values(activeFilters).some((v) => v);
@@ -316,10 +375,11 @@ const LeadAnalyticsSheet = () => {
 
       <BulkActionBar
         selectedCount={selectedLeads.length}
-        onEmail={handleBulkEmail}
         onExport={handleBulkExport}
         onDelete={handleBulkDelete}
         onClearSelection={() => setSelectedLeads([])}
+        isExporting={isExporting}
+        isDeleting={isDeleting}
       />
     </>
   );

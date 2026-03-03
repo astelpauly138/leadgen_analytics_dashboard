@@ -42,14 +42,6 @@ const Header = () => {
         </div>
 
         <div className="header-right">
-          <button
-            className="flex items-center justify-center w-10 h-10 rounded-lg hover:bg-muted transition-all duration-250 touch-target relative"
-            aria-label="Notifications"
-          >
-            <Icon name="Bell" size={20} />
-            <span className="absolute top-2 right-2 w-2 h-2 bg-error rounded-full" />
-          </button>
-
           <div className="relative" ref={userMenuRef}>
             <button
               onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
@@ -84,7 +76,7 @@ const Header = () => {
 
                 <div className="p-2">
                   <button
-                    onClick={() => setIsUserMenuOpen(false)}
+                    onClick={() => { setIsUserMenuOpen(false); navigate('/settings-dashboard'); }}
                     className="flex items-center gap-3 w-full px-3 py-2 rounded-lg hover:bg-muted transition-all duration-250 text-left touch-target"
                   >
                     <Icon name="User" size={16} />
@@ -92,7 +84,7 @@ const Header = () => {
                   </button>
 
                   <button
-                    onClick={() => setIsUserMenuOpen(false)}
+                    onClick={() => { setIsUserMenuOpen(false); navigate('/settings-dashboard'); }}
                     className="flex items-center gap-3 w-full px-3 py-2 rounded-lg hover:bg-muted transition-all duration-250 text-left touch-target"
                   >
                     <Icon name="Settings" size={16} />
@@ -100,7 +92,7 @@ const Header = () => {
                   </button>
 
                   <button
-                    onClick={() => setIsUserMenuOpen(false)}
+                    onClick={() => { setIsUserMenuOpen(false); window.open('https://analytica-data.com/contact-us', '_blank'); }}
                     className="flex items-center gap-3 w-full px-3 py-2 rounded-lg hover:bg-muted transition-all duration-250 text-left touch-target"
                   >
                     <Icon name="HelpCircle" size={16} />

@@ -159,9 +159,35 @@ const MainDashboard = () => {
     fetchDashboard();
   };
 
-  const handleQuickAction = (actionId) => {
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleQuickAction = async (actionId) => {
     if (actionId === 'refresh') {
-      fetchDashboard();
+      setIsRefreshing(true);
+      await fetchDashboard();
+      setIsRefreshing(false);
+    } else if (actionId === 'export') {
+      setIsExporting(true);
+      try {
+        const token = localStorage.getItem('access_token');
+        const response = await fetch(`http://127.0.0.1:8000/export_approved/${user.user_id}`, {
+          method: 'GET',
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!response.ok) throw new Error('Export failed');
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'leads_data.xlsx';
+        a.click();
+        window.URL.revokeObjectURL(url);
+      } catch (err) {
+        console.error('Export failed:', err);
+      } finally {
+        setIsExporting(false);
+      }
     }
   };
 
@@ -267,15 +293,15 @@ const MainDashboard = () => {
             </div>
 
             <div className="mb-6 md:mb-8">
-              <QuickActions onActionClick={handleQuickAction} />
+              <QuickActions onActionClick={handleQuickAction} isRefreshing={isRefreshing} isExporting={isExporting} />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8">
-              <div className="lg:col-span-8 h-[700px]">
+              <div className="lg:col-span-8 min-h-[700px]">
                 <ConfigurationForm onSubmit={handleConfigSubmit} dashboardData={dashboardData} />
               </div>
 
-              <div className="lg:col-span-4 h-[700px]">
+              <div className="lg:col-span-4">
                 <ActivityFeed activities={activities} />
               </div>
             </div>
@@ -286,11 +312,10 @@ const MainDashboard = () => {
                   <Icon name="Info" size={20} color="var(--color-primary)" className="mt-1 flex-shrink-0" />
                   <div>
                     <h3 className="text-base md:text-lg font-semibold text-foreground mb-1">
-                      Dashboard Information
+                      Scraping Process
                     </h3>
                     <p className="caption text-muted-foreground text-sm">
-                      Data refreshes automatically every 5 minutes. Manual refresh available via Quick Actions.
-                      All metrics are calculated in real-time from your connected data sources.
+                      Lead scraping typically takes 5-15 minutes depending on target count. You'll receive real-time updates in the activity feed.
                     </p>
                   </div>
                 </div>

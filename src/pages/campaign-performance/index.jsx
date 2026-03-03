@@ -84,6 +84,7 @@ const CampaignPerformance = () => {
   ]);
   const [chartData,     setChartData]     = useState([]);
   const [topCampaigns,  setTopCampaigns]  = useState([]);
+  const [allCampaigns,  setAllCampaigns]  = useState([]);
   const [funnelStages,  setFunnelStages]  = useState([]);
   const [funnelSummary, setFunnelSummary] = useState({ overallRate: 0, totalLeads: 0, converted: 0 });
 
@@ -231,7 +232,7 @@ const CampaignPerformance = () => {
       return score(b) - score(a);
     });
 
-    setTopCampaigns(sorted.slice(0, 5).map((c, idx) => {
+    const mapCampaign = (c, idx) => {
       const total = c.total_leads || 0;
       const safe  = Math.max(total, 1);
       return {
@@ -244,7 +245,9 @@ const CampaignPerformance = () => {
         clickRate:     parseFloat(((c.clickthrough_count || 0) / safe * 100).toFixed(1)),
         converted:     c.converted_count || 0
       };
-    }));
+    };
+    setTopCampaigns(sorted.slice(0, 5).map(mapCampaign));
+    setAllCampaigns(sorted.map(mapCampaign));
 
   }, [rawCampaigns, campaignsAllData, filters, chartTimeRange]);
 
@@ -331,7 +334,7 @@ const CampaignPerformance = () => {
                       />
                     </div>
                     <div className="lg:col-span-4 animate-fade-in">
-                      <CampaignLeaderboard campaigns={topCampaigns} />
+                      <CampaignLeaderboard campaigns={topCampaigns} allCampaigns={allCampaigns} />
                     </div>
                   </div>
 

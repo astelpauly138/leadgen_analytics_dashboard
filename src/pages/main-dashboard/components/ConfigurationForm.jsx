@@ -34,6 +34,9 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
   const [emailData, setEmailData] = useState({ subject: '', content: '', redirectUrl: '' });
   const [emailErrors, setEmailErrors] = useState({});
 
+  // Error popup state
+  const [showErrorPopup, setShowErrorPopup] = useState(false);
+
   // Load persisted leads on mount — populate counts on toggle buttons,
   // but keep the form visible until the user clicks a toggle
   useEffect(() => {
@@ -132,16 +135,23 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
 
       // 2. Create campaign in database
       const campaignPayload = {
-        name: formData.name,
-        campaign_type: 'lead_generation',
-        industry: industryLabel,
-        area: formData.area || '',
-        city: formData.city || '',
-        state: '',
-        country: countryLabel,
-        job_titles: jobTitlesArray,
-        requested_leads: parseInt(formData.no_of_targets) || 100,
-        status: 'pending'
+        campaign: {
+          name: formData.name,
+          campaign_type: 'lead_generation',
+          industry: industryLabel,
+          area: formData.area || '',
+          city: formData.city || '',
+          state: '',
+          country: countryLabel,
+          job_titles: jobTitlesArray,
+          requested_leads: parseInt(formData.no_of_targets) || 100,
+          status: 'pending'
+        },
+        email: {
+          subject: emailData.subject,
+          body: emailData.content,
+          redirect_url: emailData.redirectUrl
+        }
       };
 
       const campaignResult = await apiPost(`/campaigns/${user.user_id}`, campaignPayload);
@@ -178,11 +188,16 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
 
       if (!resp.ok) {
         console.error('Webhook responded with error', resp.status, result);
+        setShowForm(true);
+        setShowErrorPopup(true);
       } else {
         // 5. Map n8n employees to Lead format for /lead-scraping
         const employees = Array.isArray(result) ? result : (result?.employees || []);
 
-        if (employees.length > 0) {
+        if (employees.length === 0) {
+          setShowForm(true);
+          setShowErrorPopup(true);
+        } else if (employees.length > 0) {
           const leads = employees.map(emp => ({
             Employee_Name: emp['Employee Name'] || emp.Employee_Name || emp.employee_name || '',
             Work_Email: emp['Work Email'] || emp.Work_Email || emp.work_email || null,
@@ -312,7 +327,7 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
   };
 
   return (
-    <div className="bg-card border border-border rounded-xl p-4 md:p-6 shadow-sm h-full flex flex-col">
+    <div className="bg-card border border-border rounded-xl p-4 md:p-6 shadow-sm flex flex-col">
       {/* Header row: state-dependent title + toggle buttons */}
       <div className="flex items-start justify-between mb-6">
         {/* Left: dynamic header based on state */}
@@ -393,7 +408,7 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
 
       {/* Results State - Only show when list is requested */}
       {hasLeads && showList && !isSubmitting && (
-        <div className="space-y-4 flex-1 flex flex-col overflow-hidden">
+        <div className="gap-4 flex-1 flex flex-col overflow-hidden">
           {/* Summary */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-shrink-0">
             <div className="col-span-1 bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 rounded-lg p-4">
@@ -411,11 +426,11 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
           </div>
 
           {/* Lead List - Toggle between Pending and Sent */}
-          <div className="mt-4">
-            <div className="bg-card border border-border rounded-lg p-3">
-              <div className="max-h-48 overflow-y-auto">
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="bg-card border border-border rounded-lg p-3 flex-1 flex flex-col overflow-hidden">
+              <div className="flex-1 overflow-y-auto">
                 <table className="w-full">
-                  <thead className="bg-muted/50 border-b border-border sticky top-0">
+                  <thead className="bg-muted border-b border-border sticky top-0 z-10">
                     <tr>
                       {activeView === 'pending' && (
                         <th className="px-3 py-2 text-left">
@@ -607,7 +622,7 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
               loading={isSubmitting}
               iconName="Play"
               iconPosition="left"
-              fullWidth
+              className="w-full sm:flex-1"
             >
               {isSubmitting ? 'Starting Scraping...' : 'Start Lead Scraping'}
             </Button>
@@ -629,24 +644,35 @@ const ConfigurationForm = ({ onSubmit, dashboardData = {} }) => {
                 });
                 setErrors({});
               }}
-              className="sm:w-auto"
+              className="w-full sm:w-auto"
             >
               Reset
             </Button>
           </div>
         </form>
-        <div className="mt-6 p-4 bg-muted rounded-lg">
-          <div className="flex items-start gap-3">
-            <Icon name="Info" size={16} color="var(--color-primary)" className="mt-0.5 flex-shrink-0" />
-            <div>
-              <p className="text-xs md:text-sm text-foreground font-medium mb-1">Scraping Process</p>
-              <p className="caption text-muted-foreground text-xs">
-                Lead scraping typically takes 5-15 minutes depending on target count. You'll receive real-time updates in the activity feed.
-              </p>
+</>
+      )}
+
+      {/* No Leads Error Popup */}
+      {showErrorPopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-card border border-border rounded-xl shadow-xl w-full max-w-sm mx-4 p-6 text-center">
+            <div className="flex items-center justify-center w-14 h-14 bg-error/10 rounded-full mx-auto mb-4">
+              <Icon name="AlertCircle" size={28} color="var(--color-error)" />
             </div>
+            <h3 className="text-lg font-semibold text-foreground mb-2">No Leads Found</h3>
+            <p className="text-sm text-muted-foreground mb-6">
+              No leads were returned for your search criteria. Please try again with different parameters.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowErrorPopup(false)}
+              className="w-full px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors"
+            >
+              Try Again
+            </button>
           </div>
         </div>
-        </>
       )}
 
       {/* Email Details Modal */}

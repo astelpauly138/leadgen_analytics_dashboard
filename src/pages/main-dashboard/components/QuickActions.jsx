@@ -1,7 +1,7 @@
 import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
 
-const QuickActions = ({ onActionClick }) => {
+const QuickActions = ({ onActionClick, isRefreshing, isExporting }) => {
   const actions = [
     {
       id: 'export',
@@ -16,13 +16,6 @@ const QuickActions = ({ onActionClick }) => {
       icon: 'RefreshCw',
       variant: 'outline',
       description: 'Update dashboard metrics'
-    },
-    {
-      id: 'settings',
-      label: 'API Settings',
-      icon: 'Settings',
-      variant: 'outline',
-      description: 'Configure integrations'
     }
   ];
 
@@ -37,19 +30,23 @@ const QuickActions = ({ onActionClick }) => {
           <p className="caption text-muted-foreground text-xs md:text-sm">Common dashboard operations</p>
         </div>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {actions?.map((action) => (
           <Button
             key={action?.id}
             variant={action?.variant}
-            iconName={action?.icon}
+            iconName={(action?.id === 'refresh' && isRefreshing) || (action?.id === 'export' && isExporting) ? null : action?.icon}
             iconPosition="left"
             onClick={() => onActionClick(action?.id)}
+            loading={(action?.id === 'refresh' && isRefreshing) || (action?.id === 'export' && isExporting)}
+            disabled={(action?.id === 'refresh' && isRefreshing) || (action?.id === 'export' && isExporting)}
             fullWidth
             className="justify-start"
           >
             <div className="flex flex-col items-start">
-              <span className="text-sm font-medium">{action?.label}</span>
+              <span className="text-sm font-medium">
+                {action?.id === 'export' && isExporting ? 'Processing...' : action?.label}
+              </span>
               <span className="caption text-muted-foreground text-xs">{action?.description}</span>
             </div>
           </Button>

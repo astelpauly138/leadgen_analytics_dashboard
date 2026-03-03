@@ -8,6 +8,8 @@ from routes.create_campaign import router as campaign_create_router
 from routes.lead_scraping import router as lead_scraping_router
 from routes.leads_approved import router as leads_approved_router
 from routes.profile import router as profile_router
+from services.export_leads import router as export_router
+from routes.delete_leads import router as delete_leads_router
 
 app = FastAPI()
 
@@ -39,6 +41,8 @@ app.include_router(campaign_create_router)
 app.include_router(lead_scraping_router)
 app.include_router(leads_approved_router)
 app.include_router(profile_router)
+app.include_router(export_router)
+app.include_router(delete_leads_router)
 
 @app.get("/health")
 def health_check():
